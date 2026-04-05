@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SignEasy - Employee Document Portal</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Babel for React JSX Compilation in Browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Import Maps for ES Modules -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js",
+        "lucide-react": "https://esm.sh/lucide-react@0.344.0"
+      }
+    }
+    </script>
+    
+    <style>
+      body { -webkit-tap-highlight-color: transparent; }
+      .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; border: 3px solid transparent; background-clip: content-box; }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans antialiased text-slate-900 overscroll-none">
+    
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { initializeApp } from 'firebase/app';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+        import { AlertCircle, FileText, CheckCircle, User, PenTool, Clock, Shield, Briefcase, ChevronRight, X, Download, LogOut, Upload, Users, MousePointer2, Move, Search, Database, ChevronsLeft, ChevronLeft, ChevronsRight, Archive, Trash2, Plus } from 'lucide-react';
+
+        // =====================================================================
+        // YOUR FIREBASE CONFIGURATION (Auto-Injected)
+        // =====================================================================
+        const firebaseConfig = {
+          apiKey: "AIzaSyBtszfWaiZFbIUQ-OvOJzUwRGfIF9y2Dzw",
+          authDomain: "signeasy-4dee2.firebaseapp.com",
+          projectId: "signeasy-4dee2",
+          storageBucket: "signeasy-4dee2.firebasestorage.app",
+          messagingSenderId: "838426317549",
+          appId: "1:838426317549:web:3f6bad28a16fbaabaeb2e4",
+          measurementId: "G-YBDB20PWBZ"
+        };
+        // =====================================================================
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- FORM DEFINITIONS & CONTENT ---
+        const FORMS_LIBRARY = {
+          FALL_BUNDLE: {
+            id: 'FALL_BUNDLE', title: "Fall Prevention Bundle - Clinical Agreement", role: 'Clinical', requiresLeader: true,
+            content: `OWN THE MOMENT - Fall Prevention Bundle - Clinical Agreement\n\nI commit to owning every moment to ensure a SAFE environment for our patients. I am ALL IN and will provide our patients with high-quality and loving care every day. I will comply with all fall precaution guidelines as outlined in Fall Prevention Program Policy BHM-314.05, the Purposeful Patient Rounding Policy BHM-757.00 and Transfer of Accountability Policy BHM-312.04.\n\nKEY POINTS:\n- Safety Rounds and Huddles\n- Bed Exit and Chair Alarms\n- Hourly Rounding and Purposeful Toileting\n- Nonskid Socks\n- Bed Checks\n- Patient and Family Education on Fall Prevention\n- Environmental Safety Checks\n- Morse Fall Scale Assessment / Humpty Dumpty for Pediatrics\n\nCOMMITMENTS:\n- Bedside shift report/handoff to be done at the beginning of every shift.\n- Update communication board with fall risk status.\n- Bed checks every shift to ensure bed is locked and plugged in.\n- Adult patients with Morse Fall Scale > 45 will have bed alarm armed.\n- High risk patients will have chair/Posey alarm connected.\n- High risk patients will have 3 side rails up (2-4 for pediatrics).\n- Falling Star/Humpty Dumpty magnet on door for high risk.\n- Visual environmental assessment upon entering room (clear path, lighting).\n- Ensure personal items (call bell, water, phone) are within reach.\n- Purposeful hourly rounding and proactive toileting.\n- Never leave high-risk patient alone in bathroom.\n- "No Pass Zone" - everyone answers call bells.`
+          },
+          RN_HANDOFF: {
+            id: 'RN_HANDOFF', title: "RN/RN Hand-Off Communication Agreement", role: 'RN', requiresLeader: true,
+            content: `OWN THE MOMENT - RN/RN Hand-Off Communication Agreement\n\nI commit to owning every moment to ensure a SAFE environment for our patients. I will comply with all Hand-Off Communication guidelines as outlined in Transfer of Accountability Policy BHM-312.04.\n\nTHE MOMENTS I COMMIT TO OWN:\n- Prepare for incoming bedside shift report (BSR) by reviewing orders/results.\n- Educate patients/families about BSR process.\n- Inform patient during last hourly round that BSR will occur.\n- Have WOW (Workstation on Wheels) available for BSR.\n- Off-going nurse introduces incoming nurse ("Manage Up").\n- Verify patient ID using 2 identifiers.\n- Present pertinent info in ISBAR format (ID, Situation, Background, Assessment, Recommendation).\n- Incoming shift updates communication board.\n- Perform focused assessment together at bedside (lines, drains, skin, etc.).\n- Verify fall risk score and safety measures.\n- Perform visual sweep of room for safety.\n- Ticket-to-Ride completed for transports.`
+          },
+          CP_HANDOFF: {
+            id: 'CP_HANDOFF', title: "CP/CP Hand-Off Communication Agreement", role: 'Clinical Partner', requiresLeader: true,
+            content: `OWN THE MOMENT - CP/CP Hand-Off Communication Agreement\n\nI commit to owning every moment to ensure a SAFE environment for our patients. I will comply with all Hand-Off Communication guidelines.\n\nTHE MOMENTS I COMMIT TO OWN:\n- Prepare for incoming bedside shift report (BSR) by completing pending items.\n- Inform patient during last hourly round that you will return for handoff.\n- Off-going team member introduces oncoming team member ("Manage Up").\n- Create private environment/respect confidentiality.\n- Verify patient ID using 2 identifiers.\n- Visually inspect to verify patient is not soiled.\n- Ensure fall risk measures are in place (alarms, socks, etc.).\n- Verify precautions (Isolation) and restrictions (NPO, Mobility).\n- Perform visual sweep of room for safety.\n- Explain hourly rounding and call bell usage to patient.`
+          },
+          NI_ROLE: {
+            id: 'NI_ROLE', title: "Nurse Intern - ROLE CLARIFICATION", role: 'Nurse Intern', requiresLeader: true,
+            content: `NURSE INTERN ROLE CLARIFICATION (Updated 12-6-21)\n\nPERMISSIONS:\n- Receive/Give RN Report: YES (with Direct Supervision of RN)\n- Vital Signs: YES\n- Log In/Complete Vital Signs: YES\n- Assessments: NO\n- Monitor Intake & Output: YES (report to RN)\n- Basic Hygiene & Ambulation: YES (report to RN)\n- Foley Insertions & CBI: YES (with Direct Supervision of RN)\n- Foley Catheter Removal: YES\n- NG Tube Insertions: YES (with Direct Supervision of RN)\n- NG Tube Removal: YES (with Direct Supervision of RN)\n- GI (Diet, Feeding, PEG/NGT): YES (with Direct Supervision of RN)\n- Wound Dressing Changes: YES (with Direct Supervision of RN)\n- PO Med Administration: NO (**CANNOT give controlled substances**)\n- Med Injections: NO (**CANNOT give controlled substances**)\n- IV Push Meds/IV Flush: NO\n- IV Insertions: YES (with Direct Supervision of RN)\n- IV Removal: YES\n- Log In/Complete POCT (e.g. Blood Sugar): YES\n- Hang Blood: NO\n- Handle Chemo agents: NO\n- Witness or Co-Sign Consents: NO\n- Sign Off Orders in EHR: NO\n- Educate Patient: YES (with Direct Supervision of RN)\n\n*Nurse Interns CANNOT HANDLE or ADMINISTER controlled substances.`
+          },
+          NI_ACK: {
+            id: 'NI_ACK', title: "Nurse Intern Acknowledgment", role: 'Nurse Intern', requiresLeader: true,
+            content: `NURSE INTERN ACKNOWLEDGMENT\n\nAs a nurse intern, I will:\n- Seek opportunities to perform advanced skills under the direct supervision of a Registered Nurse.\n- Schedule myself a minimum of 4 shifts/month if per diem status or 2 shifts per/week if part time.\n- Be actively engaged with the collaborative support meetings to measure my progress.\n\nI understand that the Nurse Intern role is a temporary position of 15 months, and I am required to pass NCLEX within that time period.`
+          },
+          JD_ADMIN: {
+            id: 'JD_ADMIN', title: "Job Description: Unit Clerk/Admin Partner", role: 'Administrative Partner', requiresLeader: true,
+            content: `JOB TITLE: Unit Clerk/Admin Partner (Job Code 11513)\n\nSUMMARY:\nFacilitates department/patient flow and patient care by serving as a frontline ambassador in customer service, performing clerical duties and data entry functions.\n\nESSENTIAL FUNCTIONS:\n- Prepares & maintains medical record; labels pages, places forms/reports.\n- Thins & breaks down charts; flags unsigned forms.\n- Maintains/updates bed tracking system; transfers/discharges in system.\n- Records patient data on Patient Factors Screen.\n- Enters physician orders and assists care teams.\n- Unit Operation: Assists nurse with requests, transport, supplies, meal trays.\n- Serves as frontline ambassador; greets visitors, answers phones.\n- Maintains clerical equipment and orders supplies.\n\nQUALIFICATIONS:\n- High School Diploma/GED.\n- 1 year clerical experience preferred. Medical terminology desired.`
+          },
+          JD_CP: {
+            id: 'JD_CP', title: "Job Description: Clinical Partner 2", role: 'Clinical Partner', requiresLeader: true,
+            content: `JOB TITLE: Clinical Partner 2 (Job Code 10384)\n\nSUMMARY:\nThe Clinical Partner (CP) provides basic technical nursing skills and delegated tasks under the direction/supervision of the RN.\n\nESSENTIAL FUNCTIONS:\n- Performs phlebotomy as directed (with competency).\n- Admissions: Welcomes patient, vital signs, height/weight, allergies, belongings.\n- Patient Safety: Hourly rounds, answers call bells, fall precautions, CPR if needed.\n- Vital Signs: Manual/electronic, reports abnormalities to RN.\n- Hygiene: Bathing, oral care, toileting, linen changes.\n- Respiratory: O2 devices, labels sputum specimens, incentive spirometry.\n- GI/GU: Intake & Output, feeds patients, Foley catheter care/removal (18+), ostomy care.\n- Mobility: Ambulation, turning, transfer using Safe Patient Handling equipment.\n- Skin Care: Pressure ulcer prevention, simple dressings.\n- Point of Care Testing: Blood glucose monitoring.\n\nQUALIFICATIONS:\n- CNA or LPN required.\n- BLS Basic Life Support.`
+          },
+          JD_NI: {
+            id: 'JD_NI', title: "Job Description: Nurse Intern", role: 'Nurse Intern', requiresLeader: true,
+            content: `JOB TITLE: Nurse Intern (Job Code 14736)\n\nSUMMARY:\nPerforms basic nursing procedures under direct supervision of the RN. Accountable to nurses for patient care given.\n\nESSENTIAL FUNCTIONS:\n- Admissions: Welcomes patient, vital signs, belongings.\n- Basic Hygiene: ADLs, bedtime care.\n- Patient Safety: Hourly rounds, call bells, fall precautions, CPR.\n- Vital Signs: Manual/electronic, reports abnormalities.\n- Respiratory: O2 devices, SpO2, incentive spirometry.\n- GI/GU: Tube care (gastric/NG), I&O, feeding, Foley care.\n- Mobility: Ambulation, turning, Safe Patient Handling.\n- Skin Care: Pictures of ulcers (with RN), simple dressings.\n- Communication: Reports findings to RN immediately.\n\nQUALIFICATIONS:\n- Currently enrolled in nursing program, good standing, completed 1 medical surgical rotation.\n- Within 15 months of completing nursing degree (BSN/ADN).\n- BLS Basic Life Support.`
+          },
+          JD_RN_SUB: {
+            id: 'JD_RN_SUB', title: "Job Description: RN-Sub-Specialty/Procedural", role: 'RN- Subspecialty', requiresLeader: true,
+            content: `JOB TITLE: RN-Sub-Specialty/Procedural (Job Code 15516)\n\nSUMMARY:\nThe Direct Patient Care RN delivers patient-family centered care utilizing evidence-based practice standards of quality, safety, and service.\n\nCOMPETENCIES:\n- ASSESSMENT: Systematic approach, cultural considerations, recognizes changes in condition.\n- TECHNICAL SKILLS: Advanced mastery for area of practice, medication administration, pain management.\n- COMMUNICATION: SBAR, bedside report, effective communication with team/family.\n- CRITICAL THINKING: Sound judgment, decision-making, applies evidence-based practice.\n- PLANNING: Discharge planning, teaching plans.\n- INTERVENTION/EVALUATION: Modifies plan of care based on evaluation (IPER/IPOC).\n- LEADERSHIP: Delegates appropriately, mentors others, supports change.\n\nQUALIFICATIONS:\n- Associates or Bachelors in Nursing.\n- RN License.\n- ACLS, BLS required. (PALS/NRP/Chemo certs may be required per dept).`
+          },
+          JD_RN_NEW: {
+            id: 'JD_RN_NEW', title: "Job Description: RN-DPC New Grad", role: 'RN- Specialty', requiresLeader: true,
+            content: `JOB TITLE: RN-DPC New Grad (Job Code 15524)\n\nSUMMARY:\nThe New Grad RN is a licensed professional developing proficiency in core competencies: assessment, technical skills, communication, critical thinking, etc.\n\nESSENTIAL FUNCTIONS:\n- Assessment: documented per standards.\n- Technical Skills: Clarifies orders, administers meds, documents accurately.\n- Communication: Timely plan of care communication, SBAR.\n- Critical Thinking: Incorporates protocols, safe judgment.\n- Planning: Discharge planning, teaching plans.\n- Professional Accountability: Adheres to ANA Code of Ethics.\n\nQUALIFICATIONS:\n- Associates or Bachelors in Nursing.\n- RN License.\n- ACLS, BLS required.`
+          }
+        };
+
+        const FORM_TYPES = Object.values(FORMS_LIBRARY);
+
+        // --- HELPER FUNCTIONS ---
+        const blobToBase64 = (blob) => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        };
+
+        const ensurePDFLib = async () => {
+          if (!window.PDFLib) {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+            document.body.appendChild(script);
+            await new Promise(resolve => script.onload = resolve);
+          }
+        };
+
+        const ensurePdfJs = async () => {
+          if (!window.pdfjsLib) {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
+            document.body.appendChild(script);
+            await new Promise(r => script.onload = r);
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+          }
+        };
+
+        const ensureJSZip = async () => {
+          if (!window.JSZip) {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+            document.body.appendChild(script);
+            await new Promise(resolve => script.onload = resolve);
+          }
+        };
+
+        const createFallbackPDF = async (form) => {
+          if (!window.jspdf) {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            document.body.appendChild(script);
+            await new Promise(resolve => script.onload = resolve);
+          }
+          
+          const formDef = FORMS_LIBRARY[form.templateId] || { title: form.title, requiresLeader: form.requiresLeader };
+          const content = formDef?.content || "This is a custom form template.\n\nThe administrator has not yet uploaded the official PDF file for this form. You can still securely sign and acknowledge this document below.";
+          
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF('p', 'pt', 'letter');
+
+          doc.setFontSize(18);
+          doc.setFont("helvetica", "bold");
+          doc.text(form.title || "Document", 40, 50);
+
+          doc.setFontSize(11);
+          doc.setFont("helvetica", "normal");
+          const splitText = doc.splitTextToSize(content, 530);
+          let y = 80;
+          
+          for (let i = 0; i < splitText.length; i++) {
+            if (y > 720) { doc.addPage(); y = 50; }
+            doc.text(splitText[i], 40, y);
+            y += 14;
+          }
+
+          if (y > 620) { doc.addPage(); y = 50; }
+          y += 60; 
+          
+          doc.setFont("helvetica", "bold");
+          doc.text("Staff Signature: ___________________________", 40, y);
+          doc.text("Date: ___________________________", 350, y);
+
+          if (form.requiresLeader) {
+             y += 60;
+             doc.text("Leader Signature: ___________________________", 40, y);
+          }
+
+          return doc.output('datauristring');
+        };
+
+        const affixSignatureToPDF = async (pdfBase64, signatureBase64, mappings, name, isLeader = false) => {
+          await ensurePDFLib();
+
+          try {
+            const { PDFDocument, rgb } = window.PDFLib;
+            const pdfDoc = await PDFDocument.load(pdfBase64);
+            const pngImage = await pdfDoc.embedPng(signatureBase64);
+            
+            const pages = pdfDoc.getPages();
+            const lastPage = pages[pages.length - 1]; 
+            const { width, height } = lastPage.getSize();
+
+            const scale = 0.8;
+            const sigW = 140 * scale; 
+            const sigH = 45 * scale;  
+            const textSize = 7; 
+            const dateSize = 10; 
+
+            const dateStr = new Date().toLocaleDateString();
+            
+            const targetKeys = Object.keys(mappings || {}).filter(k => isLeader ? (k.startsWith('leader') && !k.startsWith('leaderdate')) : (k.startsWith('staff') && !k.startsWith('staffdate')));
+            
+            const dateKeys = Object.keys(mappings || {}).filter(k => {
+               if (isLeader) return k.startsWith('leaderdate');
+               return k.startsWith('staffdate') || k === 'date' || (k.startsWith('date') && !k.startsWith('leaderdate'));
+            });
+
+            for (const key of targetKeys) {
+                const map = mappings[key];
+                const x = map.xPct * width;
+                const boxTopY = height - (map.yPct * height);
+                const sigY = boxTopY - 35; 
+
+                lastPage.drawImage(pngImage, { x, y: sigY, width: sigW, height: sigH });
+                lastPage.drawText(`Signed by: ${name}`, { x, y: sigY - 8, size: textSize, color: rgb(0, 0, 0) });
+            }
+
+            for (const key of dateKeys) {
+                const map = mappings[key];
+                const x = map.xPct * width;
+                const boxTopY = height - (map.yPct * height);
+                const dateY = boxTopY - 20; 
+                lastPage.drawText(dateStr, { x, y: dateY, size: dateSize, color: rgb(0,0,0) });
+            }
+
+            if (targetKeys.length === 0 && dateKeys.length === 0) {
+                lastPage.drawImage(pngImage, { x: 0, y: 0, width: 1, height: 1, opacity: 0 });
+                lastPage.drawText(`Signed by: ${name}`, { x: 0, y: 0, size: 1, color: rgb(1, 1, 1), opacity: 0 });
+            }
+
+            return await pdfDoc.saveAsBase64({ dataUri: true });
+          } catch (err) {
+            console.error("PDF Stamp Error:", err);
+            throw new Error("Failed to affix signature.");
+          }
+        };
+
+        const generateFormPdfBase64 = async (form, templates) => {
+          const templateDoc = templates[form.templateId];
+          let basePdf = templateDoc?.base64;
+
+          if (!basePdf) {
+            basePdf = await createFallbackPDF(form);
+          }
+
+          if (form.employeeSignature) {
+            basePdf = await affixSignatureToPDF(basePdf, form.employeeSignature, templateDoc?.mappings, form.employeeName, false);
+          }
+          
+          if (form.leaderSignature) {
+            basePdf = await affixSignatureToPDF(basePdf, form.leaderSignature, templateDoc?.mappings, form.leaderName || "Leader", true);
+          }
+
+          return basePdf;
+        };
+
+        const SignaturePad = ({ onSave, onCancel, label }) => {
+          const canvasRef = useRef(null);
+          const [isDrawing, setIsDrawing] = useState(false);
+          const [hasSignature, setHasSignature] = useState(false);
+
+          useEffect(() => {
+            const canvas = canvasRef.current;
+            if (canvas) {
+              canvas.width = canvas.offsetWidth;
+              canvas.height = 150;
+              const ctx = canvas.getContext('2d');
+              ctx.lineWidth = 2;
+              ctx.lineCap = 'round';
+              ctx.strokeStyle = '#000';
+            }
+          }, []);
+
+          const getPos = (e) => {
+            const rect = canvasRef.current.getBoundingClientRect();
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            
+            if (e.touches && e.touches.length > 0) {
+              clientX = e.touches[0].clientX;
+              clientY = e.touches[0].clientY;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+              clientX = e.changedTouches[0].clientX;
+              clientY = e.changedTouches[0].clientY;
+            }
+            return { x: clientX - rect.left, y: clientY - rect.top };
+          };
+
+          const start = (e) => { setIsDrawing(true); const {x,y} = getPos(e); canvasRef.current.getContext('2d').beginPath(); canvasRef.current.getContext('2d').moveTo(x,y); };
+          const draw = (e) => { if(!isDrawing) return; const {x,y} = getPos(e); canvasRef.current.getContext('2d').lineTo(x,y); canvasRef.current.getContext('2d').stroke(); setHasSignature(true); };
+          const stop = () => setIsDrawing(false);
+          const clear = () => { canvasRef.current.getContext('2d').clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); setHasSignature(false); };
+
+          return (
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-md w-full max-w-md mx-auto">
+              <h3 className="text-sm font-bold text-slate-800 mb-2 text-center">{label || 'Sign Here'}</h3>
+              <div className="border-2 border-dashed border-blue-300 rounded-lg overflow-hidden touch-none bg-slate-50 h-[150px] relative">
+                <canvas 
+                  ref={canvasRef} 
+                  onMouseDown={start} onMouseMove={draw} onMouseUp={stop} onMouseLeave={stop}
+                  onTouchStart={start} onTouchMove={draw} onTouchEnd={stop} 
+                  className="absolute inset-0 w-full h-full cursor-crosshair touch-none" 
+                />
+              </div>
+              <div className="flex justify-between items-center mt-3">
+                <button onClick={clear} className="text-sm font-medium text-slate-500 hover:text-red-500 transition-colors">Clear</button>
+                <div className="space-x-2">
+                  {onCancel && <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-md transition-colors">Cancel</button>}
+                  <button onClick={()=>onSave(canvasRef.current.toDataURL('image/png'))} disabled={!hasSignature} className={`px-5 py-2 text-sm font-bold rounded-md text-white transition-colors ${hasSignature ? 'bg-blue-600 hover:bg-blue-700 shadow-sm' : 'bg-slate-300 cursor-not-allowed'}`}>Apply Signature</button>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const PDFViewer = ({ pdfBase64 }) => {
+          const [pages, setPages] = useState([]);
+          const [loading, setLoading] = useState(true);
+
+          useEffect(() => {
+            const loadPdf = async () => {
+              try {
+                setLoading(true);
+                await ensurePdfJs();
+                const base64Data = pdfBase64.split(',')[1] || pdfBase64;
+                const binary = window.atob(base64Data);
+                const bytes = new Uint8Array(binary.length);
+                for(let i=0; i<binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+                const doc = await window.pdfjsLib.getDocument({data: bytes}).promise;
+                const pageImages = [];
+                
+                for (let i = 1; i <= doc.numPages; i++) {
+                    const page = await doc.getPage(i);
+                    const viewport = page.getViewport({scale: 1.5});
+                    const canvas = document.createElement('canvas');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+                    pageImages.push(canvas.toDataURL('image/png'));
+                }
+                
+                setPages(pageImages);
+                setLoading(false);
+              } catch(err) {
+                console.error("PDF Load Error", err);
+                setLoading(false);
+              }
+            };
+            if (pdfBase64) loadPdf();
+          }, [pdfBase64]);
+
+          return (
+            <div className="flex flex-col h-full bg-slate-200 w-full overflow-y-auto overflow-x-hidden p-4 custom-scrollbar">
+              {loading ? (
+                 <div className="flex flex-col items-center justify-center h-full w-full text-slate-500 py-10">
+                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-500 mb-2"></div>
+                   <span className="text-sm font-medium">Rendering Document...</span>
+                 </div>
+              ) : (
+                 <div className="flex flex-col items-center w-full max-w-4xl mx-auto space-y-4">
+                    {pages.map((src, index) => (
+                        <div key={index} className="relative w-full shadow-lg bg-white">
+                            <img src={src} alt={`Page ${index + 1}`} className="w-full h-auto select-none pointer-events-none" />
+                            <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded">Page {index + 1}</div>
+                        </div>
+                    ))}
+                 </div>
+              )}
+            </div>
+          );
+        };
+
+        const LivePDFPreview = ({ form, templateMap }) => {
+          const [pdfSource, setPdfSource] = useState(null);
+          const [loading, setLoading] = useState(true);
+
+          useEffect(() => {
+            let isMounted = true;
+            const generate = async () => {
+              setLoading(true);
+              try {
+                const basePdf = await generateFormPdfBase64(form, { [form.templateId]: templateMap });
+                if (isMounted) setPdfSource(basePdf);
+              } catch (e) {
+                console.error("Live preview error:", e);
+              } finally {
+                if (isMounted) setLoading(false);
+              }
+            };
+            generate();
+            return () => { isMounted = false; };
+          }, [form, templateMap]);
+
+          if (loading) {
+             return (
+               <div className="flex flex-col items-center justify-center h-full w-full text-slate-500 py-10 bg-slate-200">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-500 mb-2"></div>
+                 <span className="text-sm font-medium">Assembling Document...</span>
+               </div>
+             );
+          }
+
+          return <PDFViewer pdfBase64={pdfSource} />;
+        };
+
+        const PDFMapper = ({ pdfBase64, initialMappings, onSave, onCancel }) => {
+          const [imageSrc, setImageSrc] = useState(null);
+          const [loading, setLoading] = useState(true);
+          const containerRef = useRef(null);
+          const dragMeta = useRef({ id: null, offsetX: 0, offsetY: 0 });
+
+          const [mappings, setMappings] = useState(
+            initialMappings || {
+              staff: { xPct: 0.1, yPct: 0.7 },
+              staffdate: { xPct: 0.5, yPct: 0.7 },
+              leader: { xPct: 0.1, yPct: 0.85 },
+              leaderdate: { xPct: 0.5, yPct: 0.85 }
+            }
+          );
+
+          const addMapping = (type) => {
+            const newKey = `${type}_${Date.now()}`;
+            setMappings(prev => ({ ...prev, [newKey]: { xPct: 0.5, yPct: 0.5 } }));
+          };
+
+          const removeMapping = (key) => {
+            setMappings(prev => {
+              const copy = { ...prev };
+              delete copy[key];
+              return copy;
+            });
+          };
+
+          useEffect(() => {
+            const loadPdf = async () => {
+              try {
+                await ensurePdfJs();
+                const base64Data = pdfBase64.split(',')[1];
+                const binary = window.atob(base64Data);
+                const bytes = new Uint8Array(binary.length);
+                for(let i=0; i<binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+                const pdf = await window.pdfjsLib.getDocument({data: bytes}).promise;
+                const page = await pdf.getPage(pdf.numPages); 
+                const viewport = page.getViewport({scale: 1.5}); 
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+                
+                setImageSrc(canvas.toDataURL('image/png'));
+                setLoading(false);
+              } catch(err) {
+                console.error("PDF Render Error:", err);
+                setLoading(false);
+              }
+            };
+            loadPdf();
+          }, [pdfBase64]);
+
+          const handlePointerDown = (e, id) => {
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+            dragMeta.current = { id, offsetX: clientX - rect.left, offsetY: clientY - rect.top };
+          };
+
+          const handlePointerMove = (e) => {
+            if (!dragMeta.current.id) return;
+            e.preventDefault();
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+
+            let newX = clientX - containerRect.left - dragMeta.current.offsetX;
+            let newY = clientY - containerRect.top - dragMeta.current.offsetY;
+
+            let xPct = Math.max(0, Math.min(0.85, newX / containerRect.width));
+            let yPct = Math.max(0, Math.min(0.95, newY / containerRect.height));
+
+            setMappings(prev => ({ ...prev, [dragMeta.current.id]: { xPct, yPct } }));
+          };
+
+          const handlePointerUp = () => { dragMeta.current.id = null; };
+
+          useEffect(() => {
+            window.addEventListener('mousemove', handlePointerMove);
+            window.addEventListener('mouseup', handlePointerUp);
+            window.addEventListener('touchmove', handlePointerMove, {passive: false});
+            window.addEventListener('touchend', handlePointerUp);
+            return () => {
+               window.removeEventListener('mousemove', handlePointerMove);
+               window.removeEventListener('mouseup', handlePointerUp);
+               window.removeEventListener('touchmove', handlePointerMove);
+               window.removeEventListener('touchend', handlePointerUp);
+            };
+          }, []);
+
+          if (loading) return <div className="flex-1 flex items-center justify-center bg-slate-100 animate-pulse text-slate-500 font-medium">Rendering high-fidelity preview...</div>;
+
+          return (
+            <div className="flex flex-col h-full bg-slate-100">
+              <div className="p-4 bg-white border-b flex flex-wrap justify-between items-center shadow-sm z-10 gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <p className="text-sm font-medium text-slate-700 flex items-center gap-2"><Move size={16}/> Map Fields (Last Page)</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <button onClick={()=>addMapping('staff')} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 transition-colors">+ Staff Sig</button>
+                    <button onClick={()=>addMapping('staffdate')} className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded hover:bg-green-100 transition-colors">+ Staff Date</button>
+                    <button onClick={()=>addMapping('leader')} className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2 py-1 rounded hover:bg-purple-100 transition-colors">+ Leader Sig</button>
+                    <button onClick={()=>addMapping('leaderdate')} className="text-xs bg-orange-50 text-orange-700 border border-orange-200 px-2 py-1 rounded hover:bg-orange-100 transition-colors">+ Leader Date</button>
+                  </div>
+                </div>
+                <div className="space-x-3 shrink-0 w-full sm:w-auto text-right mt-2 sm:mt-0">
+                  <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-md font-semibold transition-colors">Cancel</button>
+                  <button onClick={()=>onSave(mappings)} className="px-6 py-2 bg-indigo-600 text-white text-sm rounded-md font-bold shadow-md hover:bg-indigo-700 transition-colors">Save Coordinates</button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto p-8 flex justify-center items-start custom-scrollbar">
+                <div ref={containerRef} className="relative shadow-2xl bg-white select-none w-full max-w-3xl border" style={{height: 'fit-content'}}>
+                  <img src={imageSrc} draggable="false" className="w-full h-auto pointer-events-none" />
+                  
+                  {Object.entries(mappings).map(([key, pos]) => {
+                     const isStaffSig = key.startsWith('staff') && !key.startsWith('staffdate');
+                     const isStaffDate = key.startsWith('staffdate') || key === 'date';
+                     const isLeaderSig = key.startsWith('leader') && !key.startsWith('leaderdate');
+                     const isLeaderDate = key.startsWith('leaderdate');
+
+                     let label = 'Signature';
+                     let colorClass = 'border-gray-500 bg-gray-100/60 text-gray-800';
+                     if (isStaffSig) { label = 'Staff Sig'; colorClass = 'border-blue-500 bg-blue-100/60 text-blue-800'; }
+                     else if (isStaffDate) { label = 'Staff Date'; colorClass = 'border-green-500 bg-green-100/60 text-green-800'; }
+                     else if (isLeaderSig) { label = 'Leader Sig'; colorClass = 'border-purple-500 bg-purple-100/60 text-purple-800'; }
+                     else if (isLeaderDate) { label = 'Leader Date'; colorClass = 'border-orange-500 bg-orange-100/60 text-orange-800'; }
+
+                     return (
+                       <div 
+                         key={key}
+                         onMouseDown={(e)=>handlePointerDown(e, key)} 
+                         onTouchStart={(e)=>handlePointerDown(e, key)}
+                         className={`absolute flex items-center justify-center font-bold text-xs shadow backdrop-blur-[2px] cursor-grab active:cursor-grabbing border-2 rounded touch-none select-none ${colorClass}`}
+                         style={{ 
+                           left: `${pos.xPct * 100}%`, 
+                           top: `${pos.yPct * 100}%`,
+                           width: (isStaffDate || isLeaderDate) ? '6rem' : '9rem',
+                           height: (isStaffDate || isLeaderDate) ? '2rem' : '2.5rem'
+                         }}
+                       >
+                         {label}
+                         <button
+                           onMouseDown={(e) => { e.stopPropagation(); removeMapping(key); }}
+                           onTouchStart={(e) => { e.stopPropagation(); removeMapping(key); }}
+                           className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-red-600 z-10 shadow"
+                         >✕</button>
+                       </div>
+                     );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const App = () => {
+          const [user, setUser] = useState(null);
+          const [appUser, setAppUser] = useState(null);
+          const [view, setView] = useState('login'); 
+          const [employees, setEmployees] = useState([]);
+          const [forms, setForms] = useState([]);
+          const [templates, setTemplates] = useState({}); 
+
+          const [searchQuery, setSearchQuery] = useState('');
+          const [bulkData, setBulkData] = useState('');
+          const [selectedForm, setSelectedForm] = useState(null);
+          const [mappingMode, setMappingMode] = useState(null); 
+          const [isSubmitting, setIsSubmitting] = useState(false);
+          const [isZipping, setIsZipping] = useState(false); 
+          const [leaderName, setLeaderName] = useState('Admin Leader');
+          
+          const [showLeaderAuth, setShowLeaderAuth] = useState(false);
+          const [leaderPwd, setLeaderPwd] = useState('');
+          
+          const [customFormDefs, setCustomFormDefs] = useState([]);
+          const [showAddTemplate, setShowAddTemplate] = useState(false);
+          const [newTplTitle, setNewTplTitle] = useState('');
+          const [newTplRole, setNewTplRole] = useState('All');
+          const [newTplReqLeader, setNewTplReqLeader] = useState(true);
+
+          useEffect(() => {
+            const initAuth = async () => {
+              try {
+                  await signInAnonymously(auth);
+              } catch (e) {
+                  console.error("Firebase Auth Error:", e);
+                  alert("Could not connect to database. Did you set up Firebase Authentication?");
+              }
+            };
+            initAuth();
+            const unsubscribe = onAuthStateChanged(auth, setUser);
+            return () => unsubscribe();
+          }, []);
+
+          useEffect(() => {
+            if (!user) return;
+            const unsubEmp = onSnapshot(collection(db, 'employees'), 
+              (snap) => setEmployees(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+            const unsubForms = onSnapshot(collection(db, 'forms'),
+              (snap) => setForms(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+            const unsubTemplates = onSnapshot(collection(db, 'templates'),
+              (snap) => {
+                const tempMap = {};
+                snap.docs.forEach(d => tempMap[d.id] = d.data());
+                setTemplates(tempMap);
+              });
+            const unsubFormDefs = onSnapshot(collection(db, 'form_defs'),
+              (snap) => setCustomFormDefs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+
+            return () => { unsubEmp(); unsubForms(); unsubTemplates(); unsubFormDefs(); };
+          }, [user]);
+
+          const allFormTypes = [...FORM_TYPES, ...customFormDefs];
+
+          const loadSampleData = async () => {
+            setIsSubmitting(true);
+            const sampleStaff = [
+              { name: "Sarah Jenkins", role: "Nurse Intern" },
+              { name: "Michael Chen", role: "RN- Specialty" },
+              { name: "Jessica Alba", role: "Clinical Partner" },
+              { name: "David Wright", role: "Administrative Partner" },
+              { name: "Emily Davis", role: "RN- Subspecialty" }
+            ];
+
+            try {
+              for (const staff of sampleStaff) {
+                const docRef = await addDoc(collection(db, 'employees'), {
+                  name: staff.name, type: staff.role, createdAt: serverTimestamp()
+                });
+                await assignForms(docRef.id, staff.name, staff.role);
+              }
+              alert("Sample staff loaded successfully!");
+            } catch (e) {
+              console.error(e);
+              alert("Failed to load sample data.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          };
+
+          const handleCreateTemplate = async () => {
+            if (!newTplTitle.trim()) return;
+            setIsSubmitting(true);
+            try {
+              const newId = `CUSTOM_${Date.now()}`;
+              await setDoc(doc(db, 'form_defs', newId), {
+                title: newTplTitle,
+                role: newTplRole,
+                requiresLeader: newTplReqLeader,
+                createdAt: serverTimestamp()
+              });
+              setShowAddTemplate(false);
+              setNewTplTitle('');
+              setNewTplRole('All');
+              setNewTplReqLeader(true);
+            } catch(e) {
+              console.error(e);
+              alert("Error creating template.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          };
+
+          const handleRemoveEmployee = async (empId, empName) => {
+            if (!window.confirm(`Are you sure you want to remove ${empName} and all their associated records? This cannot be undone.`)) return;
+            setIsSubmitting(true);
+            try {
+              await deleteDoc(doc(db, 'employees', empId));
+              const toDelete = forms.filter(f => f.employeeId === empId);
+              for(const f of toDelete){
+                 await deleteDoc(doc(db, 'forms', f.id));
+              }
+            } catch(e) {
+              console.error(e);
+              alert("Failed to remove employee.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          };
+
+          const getFormsForRole = (roleStr) => {
+            const toAssign = [];
+            const r = (roleStr || '').toLowerCase();
+            
+            if (!r.includes('admin')) toAssign.push('FALL_BUNDLE');
+            if (r.includes('intern')) toAssign.push('JD_NI', 'NI_ROLE', 'NI_ACK');
+            if (r.includes('rn') || r.includes('nurse')) toAssign.push('RN_HANDOFF');
+            if (r.includes('subspecialty')) toAssign.push('JD_RN_SUB');
+            else if (r.includes('specialty')) toAssign.push('JD_RN_NEW');
+            if (r.includes('clinical partner') || r.includes('cp')) toAssign.push('JD_CP', 'CP_HANDOFF');
+            if (r.includes('admin')) toAssign.push('JD_ADMIN');
+
+            return [...new Set(toAssign)];
+          };
+
+          const assignForms = async (empId, name, role) => {
+            const formsToAssign = getFormsForRole(role);
+            const customMatches = customFormDefs.filter(def => 
+               def.role === 'All' || 
+               def.role.toLowerCase() === role.toLowerCase() ||
+               (role.toLowerCase().includes('rn') && def.role === 'RN') ||
+               (role.toLowerCase().includes('clinical') && def.role === 'Clinical')
+            ).map(def => def.id);
+
+            const finalSet = [...new Set([...formsToAssign, ...customMatches])];
+
+            for (const formId of finalSet) {
+              const templateDef = allFormTypes.find(t => t.id === formId);
+              if (templateDef) {
+                await addDoc(collection(db, 'forms'), {
+                  employeeId: empId,
+                  employeeName: name,
+                  templateId: formId,
+                  title: templateDef.title,
+                  requiresLeader: templateDef.requiresLeader,
+                  status: 'pending_employee',
+                  currentPdf: null,
+                  createdAt: serverTimestamp()
+                });
+              }
+            }
+          };
+
+          const handleBulkImport = async () => {
+            if(!bulkData.trim()) return;
+            setIsSubmitting(true);
+            const lines = bulkData.split(/\r?\n/).filter(l => l.trim());
+            let added = 0;
+            
+            try {
+              for (const line of lines) {
+                let parts = line.split('\t');
+                if (parts.length < 2) parts = line.split(',');
+
+                if (parts.length >= 2) {
+                  const name = parts[0].trim();
+                  const role = parts[1].trim();
+                  
+                  if (name && role) {
+                    const docRef = await addDoc(collection(db, 'employees'), {
+                      name: name, type: role, createdAt: serverTimestamp()
+                    });
+                    await assignForms(docRef.id, name, role);
+                    added++;
+                  }
+                }
+              }
+              setBulkData('');
+              alert(`Successfully onboarded ${added} employees and assigned corresponding forms!`);
+            } catch (e) {
+              console.error(e);
+              alert("Error during import.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          };
+
+          const handleTemplateUpload = async (formId, file) => {
+            if (!file) return;
+            if (file.size > 800000) { 
+              alert("File is too large! Firestore limits documents to 1MB. Please compress your PDF to under 800KB before uploading.");
+              return;
+            }
+            
+            try {
+              const base64 = await blobToBase64(file);
+              await setDoc(doc(db, 'templates', formId), {
+                base64: base64,
+                mappings: null, 
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+              alert(`Template loaded. Click "Configure Layout" to set signature locations.`);
+            } catch (e) {
+              console.error(e);
+              alert("Upload failed.");
+            }
+          };
+
+          const saveMappings = async (newMappings) => {
+            await setDoc(doc(db, 'templates', mappingMode), {
+              mappings: newMappings
+            }, { merge: true });
+            setMappingMode(null);
+          };
+
+          const processSignature = async (signatureData) => {
+            if (!selectedForm) return;
+            setIsSubmitting(true);
+            
+            try {
+              const templateDoc = templates[selectedForm.templateId];
+              let pdfToSign = selectedForm.currentPdf || templateDoc?.base64;
+
+              if (!pdfToSign) {
+                pdfToSign = await createFallbackPDF(selectedForm);
+              }
+
+              const isLeaderMode = view === 'leader';
+              const signerName = isLeaderMode ? leaderName : selectedForm.employeeName;
+
+              const signedPdfBase64 = await affixSignatureToPDF(pdfToSign, signatureData, templateDoc?.mappings, signerName, isLeaderMode);
+
+              const updateData = { currentPdf: signedPdfBase64 };
+
+              if (isLeaderMode) {
+                updateData.leaderSignature = signatureData;
+                updateData.leaderName = leaderName;
+                updateData.leaderSignedAt = serverTimestamp();
+                updateData.status = 'completed';
+              } else {
+                updateData.employeeSignature = signatureData;
+                updateData.employeeSignedAt = serverTimestamp();
+                updateData.status = selectedForm.requiresLeader ? 'pending_leader' : 'completed';
+              }
+
+              await updateDoc(doc(db, 'forms', selectedForm.id), updateData);
+              
+              setSelectedForm(prev => ({ ...prev, ...updateData }));
+
+            } catch (e) {
+              console.error(e); 
+              alert("Error processing signature.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          };
+
+          const downloadPDF = async (form) => {
+            setIsSubmitting(true);
+            try {
+              const basePdf = await generateFormPdfBase64(form, templates);
+              const link = document.createElement('a'); 
+              link.href = basePdf;
+              link.download = `${form.title.replace(/[\s\/]/g,'_')}_${form.employeeName}.pdf`;
+              document.body.appendChild(link); 
+              link.click(); 
+              document.body.removeChild(link);
+            } catch (e) {
+              console.error(e);
+              alert("Error downloading PDF.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          };
+
+          const downloadZip = async (formsToDownload, zipName) => {
+            if (formsToDownload.length === 0) {
+              alert("No documents to download.");
+              return;
+            }
+            
+            setIsZipping(true);
+            try {
+              await ensureJSZip();
+              const zip = new window.JSZip();
+
+              for (const form of formsToDownload) {
+                 const pdfBase64DataUri = await generateFormPdfBase64(form, templates);
+                 const base64Content = pdfBase64DataUri.split(',')[1];
+                 const folderName = form.employeeName.replace(/[^a-zA-Z0-9]/g, '_');
+                 const fileName = `${form.title.replace(/[\s\/]/g, '_')}.pdf`;
+                 zip.folder(folderName).file(fileName, base64Content, { base64: true });
+              }
+
+              const blob = await zip.generateAsync({ type: 'blob' });
+              const link = document.createElement('a');
+              link.href = URL.createObjectURL(blob);
+              link.download = `${zipName}.zip`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            } catch (e) {
+              console.error(e);
+              alert("Failed to generate ZIP archive.");
+            } finally {
+              setIsZipping(false);
+            }
+          };
+
+          const renderZippingOverlay = () => {
+            if (!isZipping) return null;
+            return (
+              <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-white p-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
+                <h2 className="text-xl font-bold">Generating Archive...</h2>
+                <p className="text-slate-300 text-sm mt-2 max-w-md text-center">Processing documents and assembling your secure ZIP file. This may take a few moments depending on the number of files.</p>
+              </div>
+            );
+          };
+
+          if (view === 'login') {
+            const filteredEmployees = employees.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+            if (showLeaderAuth) {
+              return (
+                <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+                  <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200 flex flex-col">
+                    <div className="flex justify-center mb-4">
+                      <div className="bg-purple-100 p-3 rounded-full text-purple-600"><Shield size={32} /></div>
+                    </div>
+                    <h1 className="text-3xl font-bold text-center text-slate-800 mb-1">Leader Access</h1>
+                    <p className="text-center text-slate-500 mb-6 text-sm">Enter password to continue</p>
+                    
+                    <input 
+                      type="password" 
+                      placeholder="Password" 
+                      value={leaderPwd}
+                      onChange={(e) => setLeaderPwd(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (leaderPwd === 'password') { setView('leader'); setShowLeaderAuth(false); setLeaderPwd(''); }
+                          else { alert('Incorrect password'); }
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 transition-shadow text-sm mb-4"
+                    />
+                    
+                    <button 
+                      onClick={() => {
+                        if (leaderPwd === 'password') { setView('leader'); setShowLeaderAuth(false); setLeaderPwd(''); }
+                        else { alert('Incorrect password'); }
+                      }} 
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold shadow-sm transition-colors"
+                    >
+                      Login
+                    </button>
+                    <button onClick={() => { setShowLeaderAuth(false); setLeaderPwd(''); }} className="mt-4 text-slate-500 text-sm hover:text-slate-700 transition-colors">Cancel</button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200 flex flex-col max-h-[90vh]">
+                  
+                  <div className="flex justify-center mb-4">
+                    <div className="bg-blue-100 p-3 rounded-full text-blue-600"><PenTool size={32} /></div>
+                  </div>
+                  <h1 className="text-3xl font-bold text-center text-slate-800 mb-1">SignEasy</h1>
+                  <p className="text-center text-slate-500 mb-6 text-sm">Staff Login Portal</p>
+                  
+                  {employees.length === 0 ? (
+                    <div className="text-center p-6 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                      <Users className="mx-auto text-slate-400 mb-2" size={32}/>
+                      <p className="text-slate-600 font-medium">System is empty.</p>
+                      <p className="text-xs text-slate-400 mt-1 mb-5">An administrator needs to onboard staff first, or you can preload test data.</p>
+                      
+                      <button 
+                        onClick={loadSampleData} 
+                        disabled={isSubmitting} 
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold hover:bg-indigo-200 transition-colors shadow-sm disabled:opacity-50"
+                      >
+                         <Database size={16} />
+                         {isSubmitting ? 'Loading Data...' : 'Preload Sample Staff'}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="relative mb-4">
+                        <Search className="absolute left-3 top-3 text-slate-400" size={18}/>
+                        <input 
+                          type="text" 
+                          placeholder="Search your name..." 
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-sm"
+                        />
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white shadow-inner mb-6 custom-scrollbar">
+                        {filteredEmployees.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-slate-500">No matching name found.</div>
+                        ) : (
+                          filteredEmployees.map(emp => (
+                            <button 
+                              key={emp.id}
+                              onClick={() => { setAppUser(emp); setView('dashboard'); }}
+                              className="w-full text-left p-3 hover:bg-blue-50 active:bg-blue-100 transition-colors flex flex-col justify-center items-start"
+                            >
+                              <span className="font-bold text-slate-800">{emp.name}</span>
+                              <span className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">{emp.type}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  <div className="pt-4 border-t mt-auto shrink-0">
+                    <button onClick={()=>setShowLeaderAuth(true)} className="w-full p-2 bg-slate-50 hover:bg-slate-100 border text-slate-600 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                      <Shield size={16} /> Leader Access
+                    </button>
+                  </div>
+                </div>
+                {renderZippingOverlay()}
+              </div>
+            );
+          }
+
+          const renderSigningModal = () => {
+            if (!selectedForm) return null;
+            const isLeaderMode = view === 'leader';
+            const canSign = (view === 'dashboard' && selectedForm.status === 'pending_employee') || (view === 'leader' && selectedForm.status === 'pending_leader');
+            
+            return (
+              <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-2 md:p-4 z-50">
+                <div className="bg-white w-full max-w-5xl h-[95vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+                  <div className="p-4 border-b flex justify-between items-center bg-slate-50 shrink-0">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm md:text-base leading-tight">{selectedForm.title}</h3>
+                      <p className="text-xs text-slate-500 mt-1">Subject: {selectedForm.employeeName}</p>
+                    </div>
+                    <button onClick={()=>setSelectedForm(null)} className="p-2 text-slate-400 hover:bg-slate-200 rounded-full transition-colors"><X/></button>
+                  </div>
+                  
+                  <div className="flex-1 bg-slate-200 overflow-hidden relative flex">
+                    <LivePDFPreview form={selectedForm} templateMap={templates[selectedForm.templateId]} />
+                  </div>
+                  
+                  <div className="p-4 border-t bg-white relative shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+                     {canSign ? (
+                       <div className="w-full relative">
+                         {isSubmitting && (
+                           <div className="absolute inset-0 bg-white/90 z-10 flex flex-col items-center justify-center backdrop-blur-sm rounded-lg">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                              <p className="text-sm font-bold text-blue-600">Affixing secure signature to PDF...</p>
+                           </div>
+                         )}
+                         <SignaturePad 
+                           label={isLeaderMode ? "Countersign Document" : "Employee Signature Required"}
+                           onSave={processSignature}
+                           onCancel={()=>setSelectedForm(null)}
+                         />
+                       </div>
+                     ) : (
+                       <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg border border-green-200">
+                         <div>
+                           <span className="text-xs md:text-sm font-bold text-green-700 flex items-center gap-1"><CheckCircle size={18}/> Document Signed & Locked</span>
+                           <p className="text-xs text-green-600 mt-1">Scroll to the bottom of the document to view your signature.</p>
+                         </div>
+                         <button onClick={()=>downloadPDF(selectedForm)} disabled={isSubmitting} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 md:px-5 md:py-2.5 rounded-lg shadow font-medium transition-colors text-xs md:text-sm disabled:opacity-50">
+                           <Download size={16}/> {isSubmitting ? 'Processing...' : 'Download PDF'}
+                         </button>
+                       </div>
+                     )}
+                  </div>
+                </div>
+              </div>
+            );
+          };
+
+          if (view === 'leader') {
+            return (
+              <div className="min-h-screen bg-slate-100 flex flex-col">
+                {mappingMode && (
+                   <div className="fixed inset-0 z-50">
+                     <PDFMapper 
+                       pdfBase64={templates[mappingMode].base64} 
+                       initialMappings={templates[mappingMode].mappings}
+                       onSave={saveMappings} 
+                       onCancel={()=>setMappingMode(null)} 
+                     />
+                   </div>
+                )}
+                
+                {showAddTemplate && (
+                  <div className="fixed inset-0 bg-slate-900/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+                     <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl border border-slate-200">
+                        <h3 className="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2"><Plus size={20} className="text-indigo-600"/> Create Custom Form Template</h3>
+                        <div className="space-y-4">
+                           <div>
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Form Title</label>
+                             <input value={newTplTitle} onChange={e=>setNewTplTitle(e.target.value)} placeholder="e.g. Annual Policy Acknowledgment" className="w-full border border-slate-300 p-2.5 rounded-lg mt-1 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"/>
+                           </div>
+                           <div>
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Assign To Role</label>
+                             <select value={newTplRole} onChange={e=>setNewTplRole(e.target.value)} className="w-full border border-slate-300 p-2.5 rounded-lg mt-1 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white">
+                               <option value="All">All Staff (Universal)</option>
+                               <option value="Clinical">All Clinical Staff</option>
+                               <option value="Nurse Intern">Nurse Intern</option>
+                               <option value="RN">All RNs</option>
+                               <option value="RN- Subspecialty">RN- Subspecialty</option>
+                               <option value="RN- Specialty">RN- Specialty</option>
+                               <option value="Clinical Partner">Clinical Partner</option>
+                               <option value="Administrative Partner">Administrative Partner</option>
+                             </select>
+                             <p className="text-[10px] text-slate-400 mt-1">Future profiles with this role will receive this document automatically.</p>
+                           </div>
+                           <div className="flex items-center gap-2 mt-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                             <input type="checkbox" id="reqLead" checked={newTplReqLeader} onChange={e=>setNewTplReqLeader(e.target.checked)} className="w-4 h-4 text-indigo-600 rounded cursor-pointer"/>
+                             <label htmlFor="reqLead" className="text-sm font-bold text-slate-700 cursor-pointer">Requires Leader Countersignature?</label>
+                           </div>
+                           <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+                             <button onClick={()=>setShowAddTemplate(false)} className="px-5 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+                             <button onClick={handleCreateTemplate} disabled={isSubmitting || !newTplTitle.trim()} className="px-5 py-2 text-sm bg-indigo-600 text-white font-bold rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50 transition-colors">Create Template</button>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+                )}
+                
+                <header className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-10">
+                  <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                    <h1 className="text-lg md:text-xl font-bold flex items-center gap-2 w-full md:w-auto"><Shield className="text-blue-400"/> Leader Dashboard</h1>
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-between">
+                       <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+                         <span className="text-xs text-slate-400 uppercase font-bold tracking-wider hidden sm:block">Sign As:</span>
+                         <input 
+                           value={leaderName} 
+                           onChange={e=>setLeaderName(e.target.value)} 
+                           placeholder="Leader Name"
+                           className="bg-transparent border-none outline-none text-sm text-white font-semibold w-32 focus:ring-0 p-0"
+                         />
+                       </div>
+                       <div className="flex items-center gap-3">
+                         <button onClick={()=>{setView('admin');}} className="flex items-center gap-1 text-xs md:text-sm bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded transition-colors shadow-sm"><Archive size={16}/> Doc Archive</button>
+                         <button onClick={()=>{setView('login');}} className="flex items-center gap-1 text-xs md:text-sm text-slate-400 hover:text-white transition-colors"><LogOut size={16}/> Exit</button>
+                       </div>
+                    </div>
+                  </div>
+                </header>
+
+                <main className="max-w-6xl mx-auto w-full p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 lg:col-span-1 h-fit">
+                    <h2 className="font-bold text-lg mb-3 flex items-center gap-2 text-slate-800"><Users size={20} className="text-indigo-500"/> Bulk Onboard Staff</h2>
+                    <p className="text-xs text-slate-500 mb-3 leading-relaxed">Copy and paste directly from Excel. The system will auto-assign the correct form packets based on role.</p>
+                    <div className="bg-slate-50 p-2 md:p-3 rounded text-[10px] md:text-xs font-mono text-slate-600 mb-3 border border-slate-200">
+                      Format: Name (tab) Role<br/><br/>
+                      John Doe &nbsp;&nbsp;&nbsp;&nbsp;Nurse Intern<br/>
+                      Jane Smith &nbsp;&nbsp;RN- Specialty
+                    </div>
+                    <textarea 
+                      value={bulkData} onChange={e=>setBulkData(e.target.value)} 
+                      placeholder="Paste rows here..."
+                      className="w-full h-32 p-3 border border-slate-300 rounded-lg text-sm mb-3 outline-none focus:ring-2 focus:ring-indigo-500 whitespace-pre custom-scrollbar"
+                    />
+                    <button onClick={handleBulkImport} disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-bold shadow-sm transition-colors text-sm">
+                      {isSubmitting ? 'Processing...' : 'Run Automation'}
+                    </button>
+                  </div>
+
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6">
+                      <h2 className="font-bold text-lg mb-4 text-slate-800">Pending Approvals Queue</h2>
+                      {forms.filter(f => f.status === 'pending_leader').length === 0 ? (
+                         <div className="text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">All caught up! No forms require your signature.</div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {forms.filter(f => f.status === 'pending_leader').map(f => (
+                            <div key={f.id} onClick={()=>setSelectedForm(f)} className="p-4 border rounded-xl hover:border-blue-400 hover:shadow-md cursor-pointer transition-all bg-slate-50 group">
+                              <div className="flex justify-between items-start mb-2">
+                                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-700">Action Needed</span>
+                                 <span className="text-xs text-slate-400">{new Date(f.createdAt?.seconds ? f.createdAt.seconds * 1000 : f.createdAt).toLocaleDateString()}</span>
+                              </div>
+                              <h3 className="font-bold text-slate-800 text-sm mb-1 line-clamp-2">{f.title}</h3>
+                              <p className="text-xs text-slate-500">Employee: <span className="font-semibold text-slate-700">{f.employeeName}</span></p>
+                              <div className="mt-3 text-blue-600 text-xs font-bold sm:opacity-0 group-hover:opacity-100 transition-opacity flex items-center">Open & Sign <ChevronRight size={14}/></div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 overflow-hidden">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-4">
+                         <div className="flex items-center gap-3">
+                           <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><MousePointer2 size={20} className="text-blue-500"/> Master Templates</h2>
+                         </div>
+                         <button onClick={()=>setShowAddTemplate(true)} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg hover:bg-indigo-100 font-bold flex items-center gap-1 shadow-sm transition-colors w-full sm:w-auto justify-center">
+                           <Plus size={16}/> Add Custom Form
+                         </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mb-4">Upload the physical PDF file for your forms, then map the exact locations for the signatures. Fields left unmapped will be ignored.</p>
+                      
+                      <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                        {allFormTypes.map(ft => {
+                           const hasPdf = !!templates[ft.id];
+                           const hasMappings = hasPdf && templates[ft.id].mappings;
+                           const isCustom = ft.id.startsWith('CUSTOM');
+                           
+                           return (
+                             <div key={ft.id} className="flex flex-col md:flex-row justify-between md:items-center p-3 hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors gap-3 group relative">
+                               <div>
+                                 <span className="text-sm font-semibold text-slate-800 block leading-tight mb-1">
+                                   {ft.title} {isCustom && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Custom</span>}
+                                 </span>
+                                 <span className="text-[10px] text-slate-500 uppercase tracking-wide">{ft.role} • {ft.requiresLeader ? "Leader + Staff" : "Staff Only"}</span>
+                               </div>
+                               <div className="flex items-center gap-2 shrink-0">
+                                  {!hasPdf ? (
+                                    <label className="text-xs px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-md cursor-pointer hover:bg-red-100 font-bold whitespace-nowrap shadow-sm">
+                                      Upload PDF
+                                      <input type="file" accept="application/pdf" className="hidden" onChange={(e) => handleTemplateUpload(ft.id, e.target.files[0])} />
+                                    </label>
+                                  ) : (
+                                    <>
+                                      {hasMappings ? <CheckCircle size={16} className="text-green-500" title="Coordinates mapped"/> : <AlertCircle size={16} className="text-amber-500" title="Needs mapping"/>}
+                                      <button onClick={()=>setMappingMode(ft.id)} className="text-xs px-3 py-2 bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 font-bold shadow-sm whitespace-nowrap transition-colors">Configure Layout</button>
+                                    </>
+                                  )}
+                               </div>
+                             </div>
+                           );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </main>
+                {renderSigningModal()}
+              </div>
+            );
+          }
+
+          if (view === 'admin') {
+            return (
+              <div className="min-h-screen bg-slate-50 flex flex-col">
+                <header className="bg-white border-b p-4 sticky top-0 z-10 shadow-sm">
+                  <div className="max-w-6xl mx-auto flex justify-between items-center">
+                    <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800"><Briefcase className="text-indigo-600"/> Document Archive</h1>
+                    <div className="flex items-center gap-4">
+                      <button onClick={()=>{setView('leader');}} className="text-sm font-bold text-indigo-600 hover:text-indigo-800 transition-colors">Back to Dashboard</button>
+                      <button onClick={()=>{setView('login');}} className="text-sm text-slate-500 hover:text-red-500 transition-colors" title="Logout"><LogOut size={18} /></button>
+                    </div>
+                  </div>
+                </header>
+                <main className="max-w-6xl mx-auto w-full p-4 md:p-6">
+                   <div className="bg-white rounded-xl shadow-sm border overflow-hidden flex flex-col">
+                     
+                     <div className="p-4 border-b bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                       <div className="flex items-center gap-3 w-full sm:max-w-md">
+                         <Search className="text-slate-400 w-5 h-5 shrink-0" />
+                         <input type="text" value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} placeholder="Search employees by name or role..." className="bg-transparent border-none focus:ring-0 w-full text-slate-800 placeholder-slate-400 outline-none text-sm"/>
+                       </div>
+                       
+                       <button onClick={() => downloadZip(forms, 'All_Employee_Records')} className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-colors w-full sm:w-auto shrink-0">
+                         <Archive size={16} /> Download All (ZIP)
+                       </button>
+                     </div>
+
+                     <div className="overflow-x-auto">
+                       <table className="w-full text-left text-sm whitespace-nowrap">
+                         <thead className="bg-slate-100 text-slate-600 font-semibold border-b">
+                           <tr>
+                             <th className="px-4 py-3 md:px-6">Employee Name</th>
+                             <th className="px-4 py-3 md:px-6">Role</th>
+                             <th className="px-4 py-3 md:px-6 text-center">Progress</th>
+                             <th className="px-4 py-3 md:px-6 text-right">Actions</th>
+                           </tr>
+                         </thead>
+                         <tbody className="divide-y divide-slate-100">
+                           {employees.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.type.toLowerCase().includes(searchQuery.toLowerCase())).map(emp => {
+                             const empForms = forms.filter(f => f.employeeId === emp.id);
+                             const completed = empForms.filter(f => f.status === 'completed').length;
+                             const progress = empForms.length > 0 ? (completed / empForms.length) * 100 : 0;
+                             return (
+                               <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                                 <td className="px-4 md:px-6 py-4 font-bold text-slate-800">{emp.name}</td>
+                                 <td className="px-4 md:px-6 py-4 text-slate-500"><span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded text-[10px] md:text-xs font-medium">{emp.type}</span></td>
+                                 <td className="px-4 md:px-6 py-4">
+                                   <div className="flex items-center justify-center gap-2">
+                                     <div className="w-16 md:w-24 h-2 bg-slate-200 rounded-full overflow-hidden shrink-0">
+                                       <div className="h-full bg-green-500" style={{width: `${progress}%`}}></div>
+                                     </div>
+                                     <span className="text-[10px] md:text-xs text-slate-500 font-medium">{completed}/{empForms.length}</span>
+                                   </div>
+                                 </td>
+                                 <td className="px-4 md:px-6 py-4 text-right">
+                                   <div className="flex items-center justify-end gap-3">
+                                     <button 
+                                       onClick={() => handleRemoveEmployee(emp.id, emp.name)} 
+                                       disabled={isSubmitting}
+                                       className="text-red-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors disabled:opacity-50" 
+                                       title="Permanently Remove Staff Member"
+                                     >
+                                       <Trash2 size={18} />
+                                     </button>
+                                     <button 
+                                       onClick={() => downloadZip(empForms, `${emp.name.replace(/[^a-zA-Z0-9]/g, '_')}_Records`)} 
+                                       className="text-slate-500 hover:text-indigo-600 p-2 rounded-full hover:bg-slate-200 transition-colors" 
+                                       title="Download Employee ZIP"
+                                     >
+                                       <Download size={18} />
+                                     </button>
+                                     <button onClick={()=> { setAppUser(emp); setView('dashboard'); }} className="text-indigo-600 hover:text-indigo-800 text-xs md:text-sm font-bold bg-indigo-50 px-4 py-2 rounded-lg transition-colors">View Profile</button>
+                                   </div>
+                                 </td>
+                               </tr>
+                             );
+                           })}
+                         </tbody>
+                       </table>
+                       {employees.length === 0 && <div className="p-8 text-center text-slate-400">No employees registered in the system.</div>}
+                     </div>
+                   </div>
+                </main>
+                {renderZippingOverlay()}
+              </div>
+            );
+          }
+
+          const activeForms = forms.filter(f => f.employeeId === appUser?.id);
+          
+          return (
+            <div className="min-h-screen bg-slate-50 flex flex-col">
+              <header className="bg-blue-600 p-4 text-white flex justify-between items-center shadow-lg sticky top-0 z-10">
+                <div>
+                  <h1 className="font-bold text-lg leading-tight">Staff Portal</h1>
+                  <p className="text-[10px] uppercase tracking-wider opacity-80 font-semibold">{appUser?.name} • {appUser?.type}</p>
+                </div>
+                <button onClick={()=>{setAppUser(null); setView('login');}} className="p-2 hover:bg-blue-700 rounded-full transition-colors"><LogOut size={20}/></button>
+              </header>
+              
+              <main className="p-4 md:p-6 max-w-4xl mx-auto w-full">
+                <h2 className="text-lg font-bold text-slate-800 mb-4">Required Documents</h2>
+                {activeForms.length === 0 ? (
+                   <div className="bg-white p-10 rounded-xl border border-slate-200 text-center shadow-sm">
+                     <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3 opacity-50"/>
+                     <p className="text-slate-500 font-medium">You have no assigned documents.</p>
+                   </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {activeForms.map(f => (
+                      <div key={f.id} onClick={()=>setSelectedForm(f)} className="bg-white p-5 rounded-xl border shadow-sm hover:border-blue-400 hover:shadow-md cursor-pointer transition-all group">
+                        <div className="flex justify-between items-center mb-3">
+                          {f.status === 'completed' ? (
+                             <span className="text-[10px] px-2 py-1 rounded bg-green-100 text-green-700 font-bold uppercase tracking-wide flex items-center gap-1"><CheckCircle size={12}/> Completed</span>
+                          ) : f.status === 'pending_leader' ? (
+                             <span className="text-[10px] px-2 py-1 rounded bg-purple-100 text-purple-700 font-bold uppercase tracking-wide flex items-center gap-1"><Clock size={12}/> Pending Leader</span>
+                          ) : (
+                             <span className="text-[10px] px-2 py-1 rounded bg-amber-100 text-amber-700 font-bold uppercase tracking-wide">Signature Required</span>
+                          )}
+                          <span className="text-xs text-slate-400 font-medium">{new Date(f.createdAt?.seconds ? f.createdAt.seconds * 1000 : f.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <h3 className="font-bold text-slate-800 leading-tight group-hover:text-blue-600 transition-colors">{f.title}</h3>
+                        <div className="mt-4 text-blue-600 text-xs font-bold flex items-center gap-1">
+                          {f.status === 'completed' ? 'View Document' : 'Open Document'} <ChevronRight size={14}/>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </main>
+              {renderSigningModal()}
+            </div>
+          );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
