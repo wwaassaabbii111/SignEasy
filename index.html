@@ -3,15 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SignEasy - Employee Document Portal</title>
+    <title>SignEasy - Secure Employee Portal</title>
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Babel for React JSX Compilation in Browser -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Import Maps for ES Modules -->
     <script type="importmap">
     {
       "imports": {
@@ -41,9 +37,9 @@
         import React, { useState, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
         import { initializeApp } from 'firebase/app';
-        import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-        import { AlertCircle, FileText, CheckCircle, User, PenTool, Clock, Shield, Briefcase, ChevronRight, X, Download, LogOut, Upload, Users, MousePointer2, Move, Search, Database, ChevronsLeft, ChevronLeft, ChevronsRight, Archive, Trash2, Plus } from 'lucide-react';
+        import { AlertCircle, FileText, CheckCircle, User, PenTool, Clock, Shield, Briefcase, ChevronRight, X, Download, LogOut, Upload, Users, MousePointer2, Move, Search, Database, ChevronsLeft, ChevronLeft, ChevronsRight, Archive, Trash2, Plus, Lock } from 'lucide-react';
 
         // =====================================================================
         // YOUR FIREBASE CONFIGURATION (Auto-Injected)
@@ -218,6 +214,10 @@
                return k.startsWith('staffdate') || k === 'date' || (k.startsWith('date') && !k.startsWith('leaderdate'));
             });
 
+            if (targetKeys.length === 0 && dateKeys.length === 0) {
+                return pdfBase64; // Abort stamping if no mappings exist to prevent duplicates
+            }
+
             for (const key of targetKeys) {
                 const map = mappings[key];
                 const x = map.xPct * width;
@@ -234,11 +234,6 @@
                 const boxTopY = height - (map.yPct * height);
                 const dateY = boxTopY - 20; 
                 lastPage.drawText(dateStr, { x, y: dateY, size: dateSize, color: rgb(0,0,0) });
-            }
-
-            if (targetKeys.length === 0 && dateKeys.length === 0) {
-                lastPage.drawImage(pngImage, { x: 0, y: 0, width: 1, height: 1, opacity: 0 });
-                lastPage.drawText(`Signed by: ${name}`, { x: 0, y: 0, size: 1, color: rgb(1, 1, 1), opacity: 0 });
             }
 
             return await pdfDoc.saveAsBase64({ dataUri: true });
@@ -286,16 +281,8 @@
 
           const getPos = (e) => {
             const rect = canvasRef.current.getBoundingClientRect();
-            let clientX = e.clientX;
-            let clientY = e.clientY;
-            
-            if (e.touches && e.touches.length > 0) {
-              clientX = e.touches[0].clientX;
-              clientY = e.touches[0].clientY;
-            } else if (e.changedTouches && e.changedTouches.length > 0) {
-              clientX = e.changedTouches[0].clientX;
-              clientY = e.changedTouches[0].clientY;
-            }
+            let clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
             return { x: clientX - rect.left, y: clientY - rect.top };
           };
 
@@ -577,7 +564,14 @@
         };
 
         const App = () => {
+          // AUTH STATE
           const [user, setUser] = useState(null);
+          const [authEmail, setAuthEmail] = useState('');
+          const [authPwd, setAuthPwd] = useState('');
+          const [authError, setAuthError] = useState('');
+          const [isAuthenticating, setIsAuthenticating] = useState(true);
+
+          // APP STATE
           const [appUser, setAppUser] = useState(null);
           const [view, setView] = useState('login'); 
           const [employees, setEmployees] = useState([]);
@@ -602,16 +596,10 @@
           const [newTplReqLeader, setNewTplReqLeader] = useState(true);
 
           useEffect(() => {
-            const initAuth = async () => {
-              try {
-                  await signInAnonymously(auth);
-              } catch (e) {
-                  console.error("Firebase Auth Error:", e);
-                  alert("Could not connect to database. Did you set up Firebase Authentication?");
-              }
-            };
-            initAuth();
-            const unsubscribe = onAuthStateChanged(auth, setUser);
+            const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+              setUser(currentUser);
+              setIsAuthenticating(false);
+            });
             return () => unsubscribe();
           }, []);
 
@@ -632,6 +620,19 @@
 
             return () => { unsubEmp(); unsubForms(); unsubTemplates(); unsubFormDefs(); };
           }, [user]);
+
+          const handleFirebaseLogin = async (e) => {
+            e.preventDefault();
+            setAuthError('');
+            setIsAuthenticating(true);
+            try {
+              await signInWithEmailAndPassword(auth, authEmail, authPwd);
+            } catch (err) {
+              console.error(err);
+              setAuthError("Incorrect email or password. Please try again.");
+              setIsAuthenticating(false);
+            }
+          };
 
           const allFormTypes = [...FORM_TYPES, ...customFormDefs];
 
@@ -911,6 +912,37 @@
             );
           };
 
+          // =========================================================
+          // RENDER: INITIAL FIREBASE LOGIN SCREEN
+          // =========================================================
+          if (isAuthenticating) {
+              return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Connecting...</div>;
+          }
+
+          if (!user) {
+              return (
+                <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+                  <form onSubmit={handleFirebaseLogin} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border border-slate-200">
+                    <div className="flex justify-center mb-4">
+                      <div className="bg-blue-100 p-4 rounded-full text-blue-600"><Lock size={32} /></div>
+                    </div>
+                    <h1 className="text-2xl font-bold text-center text-slate-800 mb-1">Clinic Portal Setup</h1>
+                    <p className="text-center text-slate-500 mb-6 text-sm">Enter the master clinic email and password to connect this iPad to the secure database.</p>
+                    
+                    {authError && <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">{authError}</div>}
+                    
+                    <div className="space-y-4">
+                        <input type="email" placeholder="Clinic Email (e.g., staff@clinic.com)" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" required />
+                        <input type="password" placeholder="Password" value={authPwd} onChange={e=>setAuthPwd(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" required />
+                    </div>
+                    
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow mt-6 transition-colors">Connect iPad</button>
+                    <p className="text-center text-xs text-slate-400 mt-4">This only needs to be done once per device.</p>
+                  </form>
+                </div>
+              );
+          }
+
           if (view === 'login') {
             const filteredEmployees = employees.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -967,16 +999,7 @@
                     <div className="text-center p-6 bg-slate-50 rounded-xl border border-dashed border-slate-300">
                       <Users className="mx-auto text-slate-400 mb-2" size={32}/>
                       <p className="text-slate-600 font-medium">System is empty.</p>
-                      <p className="text-xs text-slate-400 mt-1 mb-5">An administrator needs to onboard staff first, or you can preload test data.</p>
-                      
-                      <button 
-                        onClick={loadSampleData} 
-                        disabled={isSubmitting} 
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold hover:bg-indigo-200 transition-colors shadow-sm disabled:opacity-50"
-                      >
-                         <Database size={16} />
-                         {isSubmitting ? 'Loading Data...' : 'Preload Sample Staff'}
-                      </button>
+                      <p className="text-xs text-slate-400 mt-1 mb-5">A leader needs to log in and bulk onboard staff to begin.</p>
                     </div>
                   ) : (
                     <>
@@ -1010,9 +1033,12 @@
                     </>
                   )}
 
-                  <div className="pt-4 border-t mt-auto shrink-0">
-                    <button onClick={()=>setShowLeaderAuth(true)} className="w-full p-2 bg-slate-50 hover:bg-slate-100 border text-slate-600 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                  <div className="pt-4 border-t mt-auto shrink-0 flex justify-between gap-2">
+                    <button onClick={()=>setShowLeaderAuth(true)} className="flex-1 p-2 bg-slate-50 hover:bg-slate-100 border text-slate-600 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
                       <Shield size={16} /> Leader Access
+                    </button>
+                    <button onClick={()=>signOut(auth)} className="px-3 p-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-lg text-sm font-medium transition-colors" title="Disconnect iPad">
+                      <LogOut size={16}/>
                     </button>
                   </div>
                 </div>
@@ -1375,3 +1401,5 @@
     </script>
 </body>
 </html>
+
+
