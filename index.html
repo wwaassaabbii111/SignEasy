@@ -1,3 +1,6 @@
+Here is the complete, updated HTML file with the "Manage Staff" section seamlessly integrated into the Leader Dashboard.
+You can copy and paste this entire block to replace your existing file.
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1172,22 +1175,62 @@
 
                 <main className="max-w-6xl mx-auto w-full p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
-                  <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 lg:col-span-1 h-fit">
-                    <h2 className="font-bold text-lg mb-3 flex items-center gap-2 text-slate-800"><Users size={20} className="text-indigo-500"/> Bulk Onboard Staff</h2>
-                    <p className="text-xs text-slate-500 mb-3 leading-relaxed">Copy and paste directly from Excel. The system will auto-assign the correct form packets based on role.</p>
-                    <div className="bg-slate-50 p-2 md:p-3 rounded text-[10px] md:text-xs font-mono text-slate-600 mb-3 border border-slate-200">
-                      Format: Name (tab) Role<br/><br/>
-                      John Doe &nbsp;&nbsp;&nbsp;&nbsp;Nurse Intern<br/>
-                      Jane Smith &nbsp;&nbsp;RN- Specialty
+                  <div className="space-y-6 lg:col-span-1">
+                    <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 h-fit">
+                      <h2 className="font-bold text-lg mb-3 flex items-center gap-2 text-slate-800"><Users size={20} className="text-indigo-500"/> Bulk Onboard Staff</h2>
+                      <p className="text-xs text-slate-500 mb-3 leading-relaxed">Copy and paste directly from Excel. The system will auto-assign the correct form packets based on role.</p>
+                      <div className="bg-slate-50 p-2 md:p-3 rounded text-[10px] md:text-xs font-mono text-slate-600 mb-3 border border-slate-200">
+                        Format: Name (tab) Role<br/><br/>
+                        John Doe &nbsp;&nbsp;&nbsp;&nbsp;Nurse Intern<br/>
+                        Jane Smith &nbsp;&nbsp;RN- Specialty
+                      </div>
+                      <textarea 
+                        value={bulkData} onChange={e=>setBulkData(e.target.value)} 
+                        placeholder="Paste rows here..."
+                        className="w-full h-32 p-3 border border-slate-300 rounded-lg text-sm mb-3 outline-none focus:ring-2 focus:ring-indigo-500 whitespace-pre custom-scrollbar"
+                      />
+                      <button onClick={handleBulkImport} disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-bold shadow-sm transition-colors text-sm">
+                        {isSubmitting ? 'Processing...' : 'Run Automation'}
+                      </button>
                     </div>
-                    <textarea 
-                      value={bulkData} onChange={e=>setBulkData(e.target.value)} 
-                      placeholder="Paste rows here..."
-                      className="w-full h-32 p-3 border border-slate-300 rounded-lg text-sm mb-3 outline-none focus:ring-2 focus:ring-indigo-500 whitespace-pre custom-scrollbar"
-                    />
-                    <button onClick={handleBulkImport} disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-bold shadow-sm transition-colors text-sm">
-                      {isSubmitting ? 'Processing...' : 'Run Automation'}
-                    </button>
+
+                    <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 h-fit max-h-[450px] flex flex-col">
+                      <h2 className="font-bold text-lg mb-3 flex items-center gap-2 text-slate-800"><User size={20} className="text-red-500"/> Manage Staff</h2>
+                      
+                      <div className="relative mb-3 shrink-0">
+                         <Search className="absolute left-2.5 top-2.5 text-slate-400" size={14}/>
+                         <input
+                           type="text"
+                           placeholder="Search staff..."
+                           value={searchQuery}
+                           onChange={(e) => setSearchQuery(e.target.value)}
+                           className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-red-500 text-xs"
+                         />
+                      </div>
+
+                      <div className="overflow-y-auto custom-scrollbar pr-2 flex-1 space-y-2">
+                        {employees.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.type.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                          <p className="text-xs text-slate-500 text-center py-4">No staff found.</p>
+                        ) : (
+                          employees.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.type.toLowerCase().includes(searchQuery.toLowerCase())).map(emp => (
+                            <div key={emp.id} className="flex justify-between items-center p-2 hover:bg-slate-50 border border-slate-100 rounded-lg group transition-colors">
+                              <div className="overflow-hidden">
+                                <p className="text-sm font-bold text-slate-800 truncate">{emp.name}</p>
+                                <p className="text-[10px] text-slate-500 truncate">{emp.type}</p>
+                              </div>
+                              <button
+                                onClick={() => handleRemoveEmployee(emp.id, emp.name)}
+                                disabled={isSubmitting}
+                                className="text-slate-300 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                                title="Remove Staff & Delete Records"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="lg:col-span-2 space-y-6">
@@ -1402,4 +1445,4 @@
 </body>
 </html>
 
-
+```
