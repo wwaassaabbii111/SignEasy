@@ -39,7 +39,7 @@
         import { initializeApp } from 'firebase/app';
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-        import { AlertCircle, FileText, CheckCircle, User, PenTool, Clock, Shield, Briefcase, ChevronRight, X, Download, LogOut, Upload, Users, MousePointer2, Move, Search, Database, ChevronsLeft, ChevronLeft, ChevronsRight, Archive, Trash2, Plus, Lock } from 'lucide-react';
+        import { AlertCircle, FileText, CheckCircle, User, PenTool, Clock, Shield, Briefcase, ChevronRight, X, Download, LogOut, Upload, Users, MousePointer2, Move, Search, Database, ChevronsLeft, ChevronLeft, ChevronsRight, Archive, Trash2, Plus, Lock, RefreshCw, Edit } from 'lucide-react';
 
         // =====================================================================
         // YOUR FIREBASE CONFIGURATION (Auto-Injected)
@@ -59,48 +59,18 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- FORM DEFINITIONS & CONTENT ---
+        // --- DEFAULT FORM DEFINITIONS ---
         const FORMS_LIBRARY = {
-          FALL_BUNDLE: {
-            id: 'FALL_BUNDLE', title: "Fall Prevention Bundle - Clinical Agreement", role: 'Clinical', requiresLeader: true,
-            content: `OWN THE MOMENT - Fall Prevention Bundle - Clinical Agreement\n\nI commit to owning every moment to ensure a SAFE environment for our patients. I am ALL IN and will provide our patients with high-quality and loving care every day. I will comply with all fall precaution guidelines as outlined in Fall Prevention Program Policy BHM-314.05, the Purposeful Patient Rounding Policy BHM-757.00 and Transfer of Accountability Policy BHM-312.04.\n\nKEY POINTS:\n- Safety Rounds and Huddles\n- Bed Exit and Chair Alarms\n- Hourly Rounding and Purposeful Toileting\n- Nonskid Socks\n- Bed Checks\n- Patient and Family Education on Fall Prevention\n- Environmental Safety Checks\n- Morse Fall Scale Assessment / Humpty Dumpty for Pediatrics\n\nCOMMITMENTS:\n- Bedside shift report/handoff to be done at the beginning of every shift.\n- Update communication board with fall risk status.\n- Bed checks every shift to ensure bed is locked and plugged in.\n- Adult patients with Morse Fall Scale > 45 will have bed alarm armed.\n- High risk patients will have chair/Posey alarm connected.\n- High risk patients will have 3 side rails up (2-4 for pediatrics).\n- Falling Star/Humpty Dumpty magnet on door for high risk.\n- Visual environmental assessment upon entering room (clear path, lighting).\n- Ensure personal items (call bell, water, phone) are within reach.\n- Purposeful hourly rounding and proactive toileting.\n- Never leave high-risk patient alone in bathroom.\n- "No Pass Zone" - everyone answers call bells.`
-          },
-          RN_HANDOFF: {
-            id: 'RN_HANDOFF', title: "RN/RN Hand-Off Communication Agreement", role: 'RN', requiresLeader: true,
-            content: `OWN THE MOMENT - RN/RN Hand-Off Communication Agreement\n\nI commit to owning every moment to ensure a SAFE environment for our patients. I will comply with all Hand-Off Communication guidelines as outlined in Transfer of Accountability Policy BHM-312.04.\n\nTHE MOMENTS I COMMIT TO OWN:\n- Prepare for incoming bedside shift report (BSR) by reviewing orders/results.\n- Educate patients/families about BSR process.\n- Inform patient during last hourly round that BSR will occur.\n- Have WOW (Workstation on Wheels) available for BSR.\n- Off-going nurse introduces incoming nurse ("Manage Up").\n- Verify patient ID using 2 identifiers.\n- Present pertinent info in ISBAR format (ID, Situation, Background, Assessment, Recommendation).\n- Incoming shift updates communication board.\n- Perform focused assessment together at bedside (lines, drains, skin, etc.).\n- Verify fall risk score and safety measures.\n- Perform visual sweep of room for safety.\n- Ticket-to-Ride completed for transports.`
-          },
-          CP_HANDOFF: {
-            id: 'CP_HANDOFF', title: "CP/CP Hand-Off Communication Agreement", role: 'Clinical Partner', requiresLeader: true,
-            content: `OWN THE MOMENT - CP/CP Hand-Off Communication Agreement\n\nI commit to owning every moment to ensure a SAFE environment for our patients. I will comply with all Hand-Off Communication guidelines.\n\nTHE MOMENTS I COMMIT TO OWN:\n- Prepare for incoming bedside shift report (BSR) by completing pending items.\n- Inform patient during last hourly round that you will return for handoff.\n- Off-going team member introduces oncoming team member ("Manage Up").\n- Create private environment/respect confidentiality.\n- Verify patient ID using 2 identifiers.\n- Visually inspect to verify patient is not soiled.\n- Ensure fall risk measures are in place (alarms, socks, etc.).\n- Verify precautions (Isolation) and restrictions (NPO, Mobility).\n- Perform visual sweep of room for safety.\n- Explain hourly rounding and call bell usage to patient.`
-          },
-          NI_ROLE: {
-            id: 'NI_ROLE', title: "Nurse Intern - ROLE CLARIFICATION", role: 'Nurse Intern', requiresLeader: true,
-            content: `NURSE INTERN ROLE CLARIFICATION (Updated 12-6-21)\n\nPERMISSIONS:\n- Receive/Give RN Report: YES (with Direct Supervision of RN)\n- Vital Signs: YES\n- Log In/Complete Vital Signs: YES\n- Assessments: NO\n- Monitor Intake & Output: YES (report to RN)\n- Basic Hygiene & Ambulation: YES (report to RN)\n- Foley Insertions & CBI: YES (with Direct Supervision of RN)\n- Foley Catheter Removal: YES\n- NG Tube Insertions: YES (with Direct Supervision of RN)\n- NG Tube Removal: YES (with Direct Supervision of RN)\n- GI (Diet, Feeding, PEG/NGT): YES (with Direct Supervision of RN)\n- Wound Dressing Changes: YES (with Direct Supervision of RN)\n- PO Med Administration: NO (**CANNOT give controlled substances**)\n- Med Injections: NO (**CANNOT give controlled substances**)\n- IV Push Meds/IV Flush: NO\n- IV Insertions: YES (with Direct Supervision of RN)\n- IV Removal: YES\n- Log In/Complete POCT (e.g. Blood Sugar): YES\n- Hang Blood: NO\n- Handle Chemo agents: NO\n- Witness or Co-Sign Consents: NO\n- Sign Off Orders in EHR: NO\n- Educate Patient: YES (with Direct Supervision of RN)\n\n*Nurse Interns CANNOT HANDLE or ADMINISTER controlled substances.`
-          },
-          NI_ACK: {
-            id: 'NI_ACK', title: "Nurse Intern Acknowledgment", role: 'Nurse Intern', requiresLeader: true,
-            content: `NURSE INTERN ACKNOWLEDGMENT\n\nAs a nurse intern, I will:\n- Seek opportunities to perform advanced skills under the direct supervision of a Registered Nurse.\n- Schedule myself a minimum of 4 shifts/month if per diem status or 2 shifts per/week if part time.\n- Be actively engaged with the collaborative support meetings to measure my progress.\n\nI understand that the Nurse Intern role is a temporary position of 15 months, and I am required to pass NCLEX within that time period.`
-          },
-          JD_ADMIN: {
-            id: 'JD_ADMIN', title: "Job Description: Unit Clerk/Admin Partner", role: 'Administrative Partner', requiresLeader: true,
-            content: `JOB TITLE: Unit Clerk/Admin Partner (Job Code 11513)\n\nSUMMARY:\nFacilitates department/patient flow and patient care by serving as a frontline ambassador in customer service, performing clerical duties and data entry functions.\n\nESSENTIAL FUNCTIONS:\n- Prepares & maintains medical record; labels pages, places forms/reports.\n- Thins & breaks down charts; flags unsigned forms.\n- Maintains/updates bed tracking system; transfers/discharges in system.\n- Records patient data on Patient Factors Screen.\n- Enters physician orders and assists care teams.\n- Unit Operation: Assists nurse with requests, transport, supplies, meal trays.\n- Serves as frontline ambassador; greets visitors, answers phones.\n- Maintains clerical equipment and orders supplies.\n\nQUALIFICATIONS:\n- High School Diploma/GED.\n- 1 year clerical experience preferred. Medical terminology desired.`
-          },
-          JD_CP: {
-            id: 'JD_CP', title: "Job Description: Clinical Partner 2", role: 'Clinical Partner', requiresLeader: true,
-            content: `JOB TITLE: Clinical Partner 2 (Job Code 10384)\n\nSUMMARY:\nThe Clinical Partner (CP) provides basic technical nursing skills and delegated tasks under the direction/supervision of the RN.\n\nESSENTIAL FUNCTIONS:\n- Performs phlebotomy as directed (with competency).\n- Admissions: Welcomes patient, vital signs, height/weight, allergies, belongings.\n- Patient Safety: Hourly rounds, answers call bells, fall precautions, CPR if needed.\n- Vital Signs: Manual/electronic, reports abnormalities to RN.\n- Hygiene: Bathing, oral care, toileting, linen changes.\n- Respiratory: O2 devices, labels sputum specimens, incentive spirometry.\n- GI/GU: Intake & Output, feeds patients, Foley catheter care/removal (18+), ostomy care.\n- Mobility: Ambulation, turning, transfer using Safe Patient Handling equipment.\n- Skin Care: Pressure ulcer prevention, simple dressings.\n- Point of Care Testing: Blood glucose monitoring.\n\nQUALIFICATIONS:\n- CNA or LPN required.\n- BLS Basic Life Support.`
-          },
-          JD_NI: {
-            id: 'JD_NI', title: "Job Description: Nurse Intern", role: 'Nurse Intern', requiresLeader: true,
-            content: `JOB TITLE: Nurse Intern (Job Code 14736)\n\nSUMMARY:\nPerforms basic nursing procedures under direct supervision of the RN. Accountable to nurses for patient care given.\n\nESSENTIAL FUNCTIONS:\n- Admissions: Welcomes patient, vital signs, belongings.\n- Basic Hygiene: ADLs, bedtime care.\n- Patient Safety: Hourly rounds, call bells, fall precautions, CPR.\n- Vital Signs: Manual/electronic, reports abnormalities.\n- Respiratory: O2 devices, SpO2, incentive spirometry.\n- GI/GU: Tube care (gastric/NG), I&O, feeding, Foley care.\n- Mobility: Ambulation, turning, Safe Patient Handling.\n- Skin Care: Pictures of ulcers (with RN), simple dressings.\n- Communication: Reports findings to RN immediately.\n\nQUALIFICATIONS:\n- Currently enrolled in nursing program, good standing, completed 1 medical surgical rotation.\n- Within 15 months of completing nursing degree (BSN/ADN).\n- BLS Basic Life Support.`
-          },
-          JD_RN_SUB: {
-            id: 'JD_RN_SUB', title: "Job Description: RN-Sub-Specialty/Procedural", role: 'RN- Subspecialty', requiresLeader: true,
-            content: `JOB TITLE: RN-Sub-Specialty/Procedural (Job Code 15516)\n\nSUMMARY:\nThe Direct Patient Care RN delivers patient-family centered care utilizing evidence-based practice standards of quality, safety, and service.\n\nCOMPETENCIES:\n- ASSESSMENT: Systematic approach, cultural considerations, recognizes changes in condition.\n- TECHNICAL SKILLS: Advanced mastery for area of practice, medication administration, pain management.\n- COMMUNICATION: SBAR, bedside report, effective communication with team/family.\n- CRITICAL THINKING: Sound judgment, decision-making, applies evidence-based practice.\n- PLANNING: Discharge planning, teaching plans.\n- INTERVENTION/EVALUATION: Modifies plan of care based on evaluation (IPER/IPOC).\n- LEADERSHIP: Delegates appropriately, mentors others, supports change.\n\nQUALIFICATIONS:\n- Associates or Bachelors in Nursing.\n- RN License.\n- ACLS, BLS required. (PALS/NRP/Chemo certs may be required per dept).`
-          },
-          JD_RN_NEW: {
-            id: 'JD_RN_NEW', title: "Job Description: RN-DPC New Grad", role: 'RN- Specialty', requiresLeader: true,
-            content: `JOB TITLE: RN-DPC New Grad (Job Code 15524)\n\nSUMMARY:\nThe New Grad RN is a licensed professional developing proficiency in core competencies: assessment, technical skills, communication, critical thinking, etc.\n\nESSENTIAL FUNCTIONS:\n- Assessment: documented per standards.\n- Technical Skills: Clarifies orders, administers meds, documents accurately.\n- Communication: Timely plan of care communication, SBAR.\n- Critical Thinking: Incorporates protocols, safe judgment.\n- Planning: Discharge planning, teaching plans.\n- Professional Accountability: Adheres to ANA Code of Ethics.\n\nQUALIFICATIONS:\n- Associates or Bachelors in Nursing.\n- RN License.\n- ACLS, BLS required.`
-          }
+          FALL_BUNDLE: { id: 'FALL_BUNDLE', title: "Fall Prevention Bundle - Clinical Agreement", role: 'Clinical', requiresLeader: true },
+          RN_HANDOFF: { id: 'RN_HANDOFF', title: "RN/RN Hand-Off Communication Agreement", role: 'RN', requiresLeader: true },
+          CP_HANDOFF: { id: 'CP_HANDOFF', title: "CP/CP Hand-Off Communication Agreement", role: 'Clinical Partner', requiresLeader: true },
+          NI_ROLE: { id: 'NI_ROLE', title: "Nurse Intern - ROLE CLARIFICATION", role: 'Nurse Intern', requiresLeader: true },
+          NI_ACK: { id: 'NI_ACK', title: "Nurse Intern Acknowledgment", role: 'Nurse Intern', requiresLeader: true },
+          JD_ADMIN: { id: 'JD_ADMIN', title: "Job Description: Unit Clerk/Admin Partner", role: 'Administrative Partner', requiresLeader: true },
+          JD_CP: { id: 'JD_CP', title: "Job Description: Clinical Partner 2", role: 'Clinical Partner', requiresLeader: true },
+          JD_NI: { id: 'JD_NI', title: "Job Description: Nurse Intern", role: 'Nurse Intern', requiresLeader: true },
+          JD_RN_SUB: { id: 'JD_RN_SUB', title: "Job Description: RN-Sub-Specialty/Procedural", role: 'RN- Subspecialty', requiresLeader: true },
+          JD_RN_NEW: { id: 'JD_RN_NEW', title: "Job Description: RN-DPC New Grad", role: 'RN- Specialty', requiresLeader: true }
         };
 
         const FORM_TYPES = Object.values(FORMS_LIBRARY);
@@ -150,80 +120,59 @@
             document.body.appendChild(script);
             await new Promise(resolve => script.onload = resolve);
           }
-          
-          const formDef = FORMS_LIBRARY[form.templateId] || { title: form.title, requiresLeader: form.requiresLeader };
-          const content = formDef?.content || "This is a custom form template.\n\nThe administrator has not yet uploaded the official PDF file for this form. You can still securely sign and acknowledge this document below.";
-          
           const { jsPDF } = window.jspdf;
           const doc = new jsPDF('p', 'pt', 'letter');
-
           doc.setFontSize(18);
           doc.setFont("helvetica", "bold");
           doc.text(form.title || "Document", 40, 50);
-
           doc.setFontSize(11);
           doc.setFont("helvetica", "normal");
-          const splitText = doc.splitTextToSize(content, 530);
+          const splitText = doc.splitTextToSize("The administrator has not yet uploaded the official PDF file for this form. You can still securely sign and acknowledge this document below.", 530);
           let y = 80;
-          
           for (let i = 0; i < splitText.length; i++) {
-            if (y > 720) { doc.addPage(); y = 50; }
             doc.text(splitText[i], 40, y);
             y += 14;
           }
-
-          if (y > 620) { doc.addPage(); y = 50; }
           y += 60; 
-          
           doc.setFont("helvetica", "bold");
           doc.text("Staff Signature: ___________________________", 40, y);
           doc.text("Date: ___________________________", 350, y);
-
           if (form.requiresLeader) {
              y += 60;
              doc.text("Leader Signature: ___________________________", 40, y);
           }
-
           return doc.output('datauristring');
         };
 
         const affixSignatureToPDF = async (pdfBase64, signatureBase64, mappings, name, isLeader = false) => {
           await ensurePDFLib();
-
           try {
             const { PDFDocument, rgb } = window.PDFLib;
             const pdfDoc = await PDFDocument.load(pdfBase64);
             const pngImage = await pdfDoc.embedPng(signatureBase64);
-            
             const pages = pdfDoc.getPages();
             const lastPage = pages[pages.length - 1]; 
             const { width, height } = lastPage.getSize();
-
             const scale = 0.8;
             const sigW = 140 * scale; 
             const sigH = 45 * scale;  
             const textSize = 7; 
             const dateSize = 10; 
-
             const dateStr = new Date().toLocaleDateString();
             
             const targetKeys = Object.keys(mappings || {}).filter(k => isLeader ? (k.startsWith('leader') && !k.startsWith('leaderdate')) : (k.startsWith('staff') && !k.startsWith('staffdate')));
-            
             const dateKeys = Object.keys(mappings || {}).filter(k => {
                if (isLeader) return k.startsWith('leaderdate');
                return k.startsWith('staffdate') || k === 'date' || (k.startsWith('date') && !k.startsWith('leaderdate'));
             });
 
-            if (targetKeys.length === 0 && dateKeys.length === 0) {
-                return pdfBase64; // Abort stamping if no mappings exist to prevent duplicates
-            }
+            if (targetKeys.length === 0 && dateKeys.length === 0) return pdfBase64; 
 
             for (const key of targetKeys) {
                 const map = mappings[key];
                 const x = map.xPct * width;
                 const boxTopY = height - (map.yPct * height);
                 const sigY = boxTopY - 35; 
-
                 lastPage.drawImage(pngImage, { x, y: sigY, width: sigW, height: sigH });
                 lastPage.drawText(`Signed by: ${name}`, { x, y: sigY - 8, size: textSize, color: rgb(0, 0, 0) });
             }
@@ -235,7 +184,6 @@
                 const dateY = boxTopY - 20; 
                 lastPage.drawText(dateStr, { x, y: dateY, size: dateSize, color: rgb(0,0,0) });
             }
-
             return await pdfDoc.saveAsBase64({ dataUri: true });
           } catch (err) {
             console.error("PDF Stamp Error:", err);
@@ -246,19 +194,9 @@
         const generateFormPdfBase64 = async (form, templates) => {
           const templateDoc = templates[form.templateId];
           let basePdf = templateDoc?.base64;
-
-          if (!basePdf) {
-            basePdf = await createFallbackPDF(form);
-          }
-
-          if (form.employeeSignature) {
-            basePdf = await affixSignatureToPDF(basePdf, form.employeeSignature, templateDoc?.mappings, form.employeeName, false);
-          }
-          
-          if (form.leaderSignature) {
-            basePdf = await affixSignatureToPDF(basePdf, form.leaderSignature, templateDoc?.mappings, form.leaderName || "Leader", true);
-          }
-
+          if (!basePdf) basePdf = await createFallbackPDF(form);
+          if (form.employeeSignature) basePdf = await affixSignatureToPDF(basePdf, form.employeeSignature, templateDoc?.mappings, form.employeeName, false);
+          if (form.leaderSignature) basePdf = await affixSignatureToPDF(basePdf, form.leaderSignature, templateDoc?.mappings, form.leaderName || "Leader", true);
           return basePdf;
         };
 
@@ -329,7 +267,6 @@
 
                 const doc = await window.pdfjsLib.getDocument({data: bytes}).promise;
                 const pageImages = [];
-                
                 for (let i = 1; i <= doc.numPages; i++) {
                     const page = await doc.getPage(i);
                     const viewport = page.getViewport({scale: 1.5});
@@ -339,7 +276,6 @@
                     await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
                     pageImages.push(canvas.toDataURL('image/png'));
                 }
-                
                 setPages(pageImages);
                 setLoading(false);
               } catch(err) {
@@ -400,7 +336,6 @@
                </div>
              );
           }
-
           return <PDFViewer pdfBase64={pdfSource} />;
         };
 
@@ -541,12 +476,7 @@
                          onMouseDown={(e)=>handlePointerDown(e, key)} 
                          onTouchStart={(e)=>handlePointerDown(e, key)}
                          className={`absolute flex items-center justify-center font-bold text-xs shadow backdrop-blur-[2px] cursor-grab active:cursor-grabbing border-2 rounded touch-none select-none ${colorClass}`}
-                         style={{ 
-                           left: `${pos.xPct * 100}%`, 
-                           top: `${pos.yPct * 100}%`,
-                           width: (isStaffDate || isLeaderDate) ? '6rem' : '9rem',
-                           height: (isStaffDate || isLeaderDate) ? '2rem' : '2.5rem'
-                         }}
+                         style={{ left: `${pos.xPct * 100}%`, top: `${pos.yPct * 100}%`, width: (isStaffDate || isLeaderDate) ? '6rem' : '9rem', height: (isStaffDate || isLeaderDate) ? '2rem' : '2.5rem' }}
                        >
                          {label}
                          <button
@@ -590,7 +520,10 @@
           const [leaderPwd, setLeaderPwd] = useState('');
           
           const [customFormDefs, setCustomFormDefs] = useState([]);
+          
+          // Form Template Editing State
           const [showAddTemplate, setShowAddTemplate] = useState(false);
+          const [editingTemplate, setEditingTemplate] = useState(null);
           const [newTplTitle, setNewTplTitle] = useState('');
           const [newTplRole, setNewTplRole] = useState('All');
           const [newTplReqLeader, setNewTplReqLeader] = useState(true);
@@ -634,52 +567,41 @@
             }
           };
 
-          const allFormTypes = [...FORM_TYPES, ...customFormDefs];
+          // --- DYNAMIC TEMPLATE CALCULATION ---
+          // Prioritize Firestore form_defs over hardcoded default FORMS_LIBRARY
+          const combinedFormsMap = {};
+          FORM_TYPES.forEach(ft => combinedFormsMap[ft.id] = ft);
+          customFormDefs.forEach(ct => combinedFormsMap[ct.id] = { ...combinedFormsMap[ct.id], ...ct });
+          const allFormTypes = Object.values(combinedFormsMap);
 
-          const loadSampleData = async () => {
-            setIsSubmitting(true);
-            const sampleStaff = [
-              { name: "Sarah Jenkins", role: "Nurse Intern" },
-              { name: "Michael Chen", role: "RN- Specialty" },
-              { name: "Jessica Alba", role: "Clinical Partner" },
-              { name: "David Wright", role: "Administrative Partner" },
-              { name: "Emily Davis", role: "RN- Subspecialty" }
-            ];
-
-            try {
-              for (const staff of sampleStaff) {
-                const docRef = await addDoc(collection(db, 'employees'), {
-                  name: staff.name, type: staff.role, createdAt: serverTimestamp()
-                });
-                await assignForms(docRef.id, staff.name, staff.role);
-              }
-              alert("Sample staff loaded successfully!");
-            } catch (e) {
-              console.error(e);
-              alert("Failed to load sample data.");
-            } finally {
-              setIsSubmitting(false);
-            }
+          // Matching logic for Dynamic Role Assignment
+          const isRoleMatch = (defRole, empRole) => {
+            if (defRole === 'All') return true;
+            if (defRole === empRole) return true;
+            if (defRole === 'Clinical' && ['Nurse Intern', 'RN- Specialty', 'RN- Subspecialty', 'Clinical Partner', 'RN', 'Clinical'].includes(empRole)) return true;
+            return false;
           };
 
-          const handleCreateTemplate = async () => {
+          // Template Edit / Create Logic
+          const handleSaveTemplate = async () => {
             if (!newTplTitle.trim()) return;
             setIsSubmitting(true);
             try {
-              const newId = `CUSTOM_${Date.now()}`;
-              await setDoc(doc(db, 'form_defs', newId), {
+              const docId = editingTemplate ? editingTemplate.id : `CUSTOM_${Date.now()}`;
+              await setDoc(doc(db, 'form_defs', docId), {
                 title: newTplTitle,
                 role: newTplRole,
                 requiresLeader: newTplReqLeader,
-                createdAt: serverTimestamp()
-              });
+                updatedAt: serverTimestamp()
+              }, { merge: true });
               setShowAddTemplate(false);
+              setEditingTemplate(null);
               setNewTplTitle('');
               setNewTplRole('All');
               setNewTplReqLeader(true);
             } catch(e) {
               console.error(e);
-              alert("Error creating template.");
+              alert("Error saving template.");
             } finally {
               setIsSubmitting(false);
             }
@@ -702,60 +624,85 @@
             }
           };
 
-          // Function to securely update role in Firebase
-          const handleUpdateRole = async (empId, newRole) => {
-            setIsSubmitting(true);
-            try {
-              await updateDoc(doc(db, 'employees', empId), { type: newRole });
-              // Note: This updates the profile but does not auto-assign new forms to prevent duplicating or overwriting active forms.
-            } catch(e) {
-              console.error(e);
-              alert("Failed to update role.");
-            } finally {
-              setIsSubmitting(false);
-            }
-          };
-
-          const getFormsForRole = (roleStr) => {
-            const toAssign = [];
-            const r = (roleStr || '').toLowerCase();
-            
-            if (!r.includes('admin')) toAssign.push('FALL_BUNDLE');
-            if (r.includes('intern')) toAssign.push('JD_NI', 'NI_ROLE', 'NI_ACK');
-            if (r.includes('rn') || r.includes('nurse')) toAssign.push('RN_HANDOFF');
-            if (r.includes('subspecialty')) toAssign.push('JD_RN_SUB');
-            else if (r.includes('specialty')) toAssign.push('JD_RN_NEW');
-            if (r.includes('clinical partner') || r.includes('cp')) toAssign.push('JD_CP', 'CP_HANDOFF');
-            if (r.includes('admin')) toAssign.push('JD_ADMIN');
-
-            return [...new Set(toAssign)];
-          };
-
           const assignForms = async (empId, name, role) => {
-            const formsToAssign = getFormsForRole(role);
-            const customMatches = customFormDefs.filter(def => 
-               def.role === 'All' || 
-               def.role.toLowerCase() === role.toLowerCase() ||
-               (role.toLowerCase().includes('rn') && def.role === 'RN') ||
-               (role.toLowerCase().includes('clinical') && def.role === 'Clinical')
-            ).map(def => def.id);
+            const applicableForms = allFormTypes.filter(def => isRoleMatch(def.role, role));
+            const existingFormDocs = forms.filter(f => f.employeeId === empId);
+            const existingTemplateIds = existingFormDocs.map(f => f.templateId);
 
-            const finalSet = [...new Set([...formsToAssign, ...customMatches])];
-
-            for (const formId of finalSet) {
-              const templateDef = allFormTypes.find(t => t.id === formId);
-              if (templateDef) {
+            for (const def of applicableForms) {
+              if (!existingTemplateIds.includes(def.id)) {
                 await addDoc(collection(db, 'forms'), {
                   employeeId: empId,
                   employeeName: name,
-                  templateId: formId,
-                  title: templateDef.title,
-                  requiresLeader: templateDef.requiresLeader,
+                  templateId: def.id,
+                  title: def.title,
+                  requiresLeader: def.requiresLeader,
                   status: 'pending_employee',
                   currentPdf: null,
                   createdAt: serverTimestamp()
                 });
               }
+            }
+          };
+
+          const handleSyncStaffForms = async (empId, empName, role) => {
+             setIsSubmitting(true);
+             try {
+               const applicableForms = allFormTypes.filter(def => isRoleMatch(def.role, role));
+               const existingTemplateIds = forms.filter(f => f.employeeId === empId).map(f => f.templateId);
+               let added = 0;
+
+               for (const def of applicableForms) {
+                 if (!existingTemplateIds.includes(def.id)) {
+                   await addDoc(collection(db, 'forms'), {
+                     employeeId: empId,
+                     employeeName: empName,
+                     templateId: def.id,
+                     title: def.title,
+                     requiresLeader: def.requiresLeader,
+                     status: 'pending_employee',
+                     currentPdf: null,
+                     createdAt: serverTimestamp()
+                   });
+                   added++;
+                 }
+               }
+               alert(`Synced! Added ${added} missing forms to ${empName}.`);
+             } catch(e) {
+               console.error(e);
+               alert("Error syncing forms.");
+             } finally {
+               setIsSubmitting(false);
+             }
+          };
+
+          const handleUpdateRole = async (empId, empName, newRole) => {
+            setIsSubmitting(true);
+            try {
+              await updateDoc(doc(db, 'employees', empId), { type: newRole });
+              // Automatically check for and assign new forms needed for the new role
+              const applicableForms = allFormTypes.filter(def => isRoleMatch(def.role, newRole));
+              const existingTemplateIds = forms.filter(f => f.employeeId === empId).map(f => f.templateId);
+
+              for (const def of applicableForms) {
+                if (!existingTemplateIds.includes(def.id)) {
+                  await addDoc(collection(db, 'forms'), {
+                    employeeId: empId,
+                    employeeName: empName,
+                    templateId: def.id,
+                    title: def.title,
+                    requiresLeader: def.requiresLeader,
+                    status: 'pending_employee',
+                    currentPdf: null,
+                    createdAt: serverTimestamp()
+                  });
+                }
+              }
+            } catch(e) {
+              console.error(e);
+              alert("Failed to update role.");
+            } finally {
+              setIsSubmitting(false);
             }
           };
 
@@ -778,7 +725,21 @@
                     const docRef = await addDoc(collection(db, 'employees'), {
                       name: name, type: role, createdAt: serverTimestamp()
                     });
-                    await assignForms(docRef.id, name, role);
+                    
+                    // Assign forms dynamically based on matching logic
+                    const applicableForms = allFormTypes.filter(def => isRoleMatch(def.role, role));
+                    for (const def of applicableForms) {
+                       await addDoc(collection(db, 'forms'), {
+                         employeeId: docRef.id,
+                         employeeName: name,
+                         templateId: def.id,
+                         title: def.title,
+                         requiresLeader: def.requiresLeader,
+                         status: 'pending_employee',
+                         currentPdf: null,
+                         createdAt: serverTimestamp()
+                       });
+                    }
                     added++;
                   }
                 }
@@ -799,7 +760,6 @@
               alert("File is too large! Firestore limits documents to 1MB. Please compress your PDF to under 800KB before uploading.");
               return;
             }
-            
             try {
               const base64 = await blobToBase64(file);
               await setDoc(doc(db, 'templates', formId), {
@@ -852,7 +812,6 @@
               }
 
               await updateDoc(doc(db, 'forms', selectedForm.id), updateData);
-              
               setSelectedForm(prev => ({ ...prev, ...updateData }));
 
             } catch (e) {
@@ -861,6 +820,39 @@
             } finally {
               setIsSubmitting(false);
             }
+          };
+
+          const handleResetForm = async (formId) => {
+             if(!window.confirm("Are you sure you want to REDO this form? All existing signatures will be permanently cleared.")) return;
+             setIsSubmitting(true);
+             try {
+                await updateDoc(doc(db, 'forms', formId), {
+                   status: 'pending_employee',
+                   currentPdf: null,
+                   employeeSignature: null,
+                   leaderSignature: null,
+                   employeeSignedAt: null,
+                   leaderSignedAt: null
+                });
+                setSelectedForm(prev => ({...prev, status: 'pending_employee', currentPdf: null}));
+             } catch(e) {
+                console.error(e);
+             } finally {
+                setIsSubmitting(false);
+             }
+          };
+
+          const handleDeleteForm = async (formId) => {
+             if(!window.confirm("Are you sure you want to completely DELETE this form from the employee's record?")) return;
+             setIsSubmitting(true);
+             try {
+                await deleteDoc(doc(db, 'forms', formId));
+                setSelectedForm(null);
+             } catch(e) {
+                console.error(e);
+             } finally {
+                setIsSubmitting(false);
+             }
           };
 
           const downloadPDF = async (form) => {
@@ -886,7 +878,6 @@
               alert("No documents to download.");
               return;
             }
-            
             setIsZipping(true);
             try {
               await ensureJSZip();
@@ -926,9 +917,6 @@
             );
           };
 
-          // =========================================================
-          // RENDER: INITIAL FIREBASE LOGIN SCREEN
-          // =========================================================
           if (isAuthenticating) {
               return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Connecting...</div>;
           }
@@ -958,7 +946,6 @@
           }
 
           if (view === 'login') {
-            // Updated filtering and ALPHABETICAL sorting
             const filteredEmployees = [...employees]
               .sort((a, b) => a.name.localeCompare(b.name))
               .filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -1066,18 +1053,27 @@
 
           const renderSigningModal = () => {
             if (!selectedForm) return null;
-            const isLeaderMode = view === 'leader';
+            const isLeaderMode = view === 'leader' || view === 'admin';
             const canSign = (view === 'dashboard' && selectedForm.status === 'pending_employee') || (view === 'leader' && selectedForm.status === 'pending_leader');
             
             return (
               <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-2 md:p-4 z-50">
                 <div className="bg-white w-full max-w-5xl h-[95vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
-                  <div className="p-4 border-b flex justify-between items-center bg-slate-50 shrink-0">
-                    <div>
-                      <h3 className="font-bold text-slate-800 text-sm md:text-base leading-tight">{selectedForm.title}</h3>
+                  <div className="p-3 md:p-4 border-b flex justify-between items-center bg-slate-50 shrink-0">
+                    <div className="flex-1 pr-2">
+                      <h3 className="font-bold text-slate-800 text-sm md:text-base leading-tight truncate">{selectedForm.title}</h3>
                       <p className="text-xs text-slate-500 mt-1">Subject: {selectedForm.employeeName}</p>
                     </div>
-                    <button onClick={()=>setSelectedForm(null)} className="p-2 text-slate-400 hover:bg-slate-200 rounded-full transition-colors"><X/></button>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <button onClick={() => handleResetForm(selectedForm.id)} className="p-1.5 text-orange-500 hover:bg-orange-100 rounded-lg transition-colors flex items-center gap-1 text-[10px] sm:text-xs font-bold border border-transparent hover:border-orange-200" title="Redo Form (Clear Signatures)">
+                        <RefreshCw size={14}/><span className="hidden sm:inline">Redo Form</span>
+                      </button>
+                      <button onClick={() => handleDeleteForm(selectedForm.id)} className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors flex items-center gap-1 text-[10px] sm:text-xs font-bold border border-transparent hover:border-red-200" title="Delete Form Completely">
+                        <Trash2 size={14}/><span className="hidden sm:inline">Delete</span>
+                      </button>
+                      <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                      <button onClick={()=>setSelectedForm(null)} className="p-1.5 text-slate-500 hover:bg-slate-200 rounded-full transition-colors"><X size={20}/></button>
+                    </div>
                   </div>
                   
                   <div className="flex-1 bg-slate-200 overflow-hidden relative flex">
@@ -1137,7 +1133,10 @@
                 {showAddTemplate && (
                   <div className="fixed inset-0 bg-slate-900/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
                      <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl border border-slate-200">
-                        <h3 className="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2"><Plus size={20} className="text-indigo-600"/> Create Custom Form Template</h3>
+                        <h3 className="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2">
+                          {editingTemplate ? <Edit size={20} className="text-indigo-600"/> : <Plus size={20} className="text-indigo-600"/>} 
+                          {editingTemplate ? 'Edit Form Template' : 'Create Custom Form'}
+                        </h3>
                         <div className="space-y-4">
                            <div>
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Form Title</label>
@@ -1155,15 +1154,15 @@
                                <option value="Clinical Partner">Clinical Partner</option>
                                <option value="Administrative Partner">Administrative Partner</option>
                              </select>
-                             <p className="text-[10px] text-slate-400 mt-1">Future profiles with this role will receive this document automatically.</p>
+                             <p className="text-[10px] text-slate-400 mt-1">Staff matching this profile will receive this document automatically.</p>
                            </div>
                            <div className="flex items-center gap-2 mt-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
                              <input type="checkbox" id="reqLead" checked={newTplReqLeader} onChange={e=>setNewTplReqLeader(e.target.checked)} className="w-4 h-4 text-indigo-600 rounded cursor-pointer"/>
                              <label htmlFor="reqLead" className="text-sm font-bold text-slate-700 cursor-pointer">Requires Leader Countersignature?</label>
                            </div>
                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
-                             <button onClick={()=>setShowAddTemplate(false)} className="px-5 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
-                             <button onClick={handleCreateTemplate} disabled={isSubmitting || !newTplTitle.trim()} className="px-5 py-2 text-sm bg-indigo-600 text-white font-bold rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50 transition-colors">Create Template</button>
+                             <button onClick={()=>{ setShowAddTemplate(false); setEditingTemplate(null); }} className="px-5 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+                             <button onClick={handleSaveTemplate} disabled={isSubmitting || !newTplTitle.trim()} className="px-5 py-2 text-sm bg-indigo-600 text-white font-bold rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50 transition-colors">Save Template</button>
                            </div>
                         </div>
                      </div>
@@ -1236,7 +1235,7 @@
                                 <p className="text-sm font-bold text-slate-800 truncate">{emp.name}</p>
                                 <select 
                                   value={emp.type}
-                                  onChange={(e) => handleUpdateRole(emp.id, e.target.value)}
+                                  onChange={(e) => handleUpdateRole(emp.id, emp.name, e.target.value)}
                                   disabled={isSubmitting}
                                   className="mt-0.5 text-[10px] text-slate-600 bg-white border border-slate-200 rounded py-0.5 px-1 w-full max-w-[140px] outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                                 >
@@ -1252,14 +1251,24 @@
                                   <option value="Clinical">Clinical</option>
                                 </select>
                               </div>
-                              <button
-                                onClick={() => handleRemoveEmployee(emp.id, emp.name)}
-                                disabled={isSubmitting}
-                                className="text-slate-300 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
-                                title="Remove Staff & Delete Records"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                              <div className="flex flex-col gap-1 shrink-0">
+                                <button
+                                  onClick={() => handleSyncStaffForms(emp.id, emp.name, emp.type)}
+                                  disabled={isSubmitting}
+                                  className="text-slate-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-50"
+                                  title="Sync/Add Missing Forms"
+                                >
+                                  <RefreshCw size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveEmployee(emp.id, emp.name)}
+                                  disabled={isSubmitting}
+                                  className="text-slate-300 hover:text-red-600 p-1 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                                  title="Remove Staff & Delete Records"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}
@@ -1294,11 +1303,11 @@
                          <div className="flex items-center gap-3">
                            <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><MousePointer2 size={20} className="text-blue-500"/> Master Templates</h2>
                          </div>
-                         <button onClick={()=>setShowAddTemplate(true)} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg hover:bg-indigo-100 font-bold flex items-center gap-1 shadow-sm transition-colors w-full sm:w-auto justify-center">
+                         <button onClick={()=>{ setEditingTemplate(null); setNewTplTitle(''); setNewTplRole('All'); setNewTplReqLeader(true); setShowAddTemplate(true); }} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg hover:bg-indigo-100 font-bold flex items-center gap-1 shadow-sm transition-colors w-full sm:w-auto justify-center">
                            <Plus size={16}/> Add Custom Form
                          </button>
                       </div>
-                      <p className="text-xs text-slate-500 mb-4">Upload the physical PDF file for your forms, then map the exact locations for the signatures. Fields left unmapped will be ignored.</p>
+                      <p className="text-xs text-slate-500 mb-4">Click the pencil icon to edit template assignment rules. Upload physical PDFs to map signature locations.</p>
                       
                       <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
                         {allFormTypes.map(ft => {
@@ -1308,11 +1317,14 @@
                            
                            return (
                              <div key={ft.id} className="flex flex-col md:flex-row justify-between md:items-center p-3 hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors gap-3 group relative">
-                               <div>
-                                 <span className="text-sm font-semibold text-slate-800 block leading-tight mb-1">
-                                   {ft.title} {isCustom && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Custom</span>}
-                                 </span>
-                                 <span className="text-[10px] text-slate-500 uppercase tracking-wide">{ft.role} • {ft.requiresLeader ? "Leader + Staff" : "Staff Only"}</span>
+                               <div className="flex items-start gap-3">
+                                 <button onClick={() => { setEditingTemplate(ft); setNewTplTitle(ft.title); setNewTplRole(ft.role); setNewTplReqLeader(ft.requiresLeader); setShowAddTemplate(true); }} className="mt-0.5 text-slate-400 hover:text-blue-600 transition-colors" title="Edit Template Settings"><Edit size={16}/></button>
+                                 <div>
+                                   <span className="text-sm font-semibold text-slate-800 block leading-tight mb-1">
+                                     {ft.title} {isCustom && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Custom</span>}
+                                   </span>
+                                   <span className="text-[10px] text-slate-500 uppercase tracking-wide">{ft.role} • {ft.requiresLeader ? "Leader + Staff" : "Staff Only"}</span>
+                                 </div>
                                </div>
                                <div className="flex items-center gap-2 shrink-0">
                                   {!hasPdf ? (
@@ -1422,6 +1434,7 @@
                    </div>
                 </main>
                 {renderZippingOverlay()}
+                {renderSigningModal()}
               </div>
             );
           }
