@@ -702,6 +702,20 @@
             }
           };
 
+          // Function to securely update role in Firebase
+          const handleUpdateRole = async (empId, newRole) => {
+            setIsSubmitting(true);
+            try {
+              await updateDoc(doc(db, 'employees', empId), { type: newRole });
+              // Note: This updates the profile but does not auto-assign new forms to prevent duplicating or overwriting active forms.
+            } catch(e) {
+              console.error(e);
+              alert("Failed to update role.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          };
+
           const getFormsForRole = (roleStr) => {
             const toAssign = [];
             const r = (roleStr || '').toLowerCase();
@@ -944,7 +958,10 @@
           }
 
           if (view === 'login') {
-            const filteredEmployees = employees.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            // Updated filtering and ALPHABETICAL sorting
+            const filteredEmployees = [...employees]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
             if (showLeaderAuth) {
               return (
@@ -1100,6 +1117,10 @@
           };
 
           if (view === 'leader') {
+            const filteredManageStaff = [...employees]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.type.toLowerCase().includes(searchQuery.toLowerCase()));
+
             return (
               <div className="min-h-screen bg-slate-100 flex flex-col">
                 {mappingMode && (
@@ -1206,14 +1227,30 @@
                       </div>
 
                       <div className="overflow-y-auto custom-scrollbar pr-2 flex-1 space-y-2">
-                        {employees.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.type.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                        {filteredManageStaff.length === 0 ? (
                           <p className="text-xs text-slate-500 text-center py-4">No staff found.</p>
                         ) : (
-                          employees.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.type.toLowerCase().includes(searchQuery.toLowerCase())).map(emp => (
+                          filteredManageStaff.map(emp => (
                             <div key={emp.id} className="flex justify-between items-center p-2 hover:bg-slate-50 border border-slate-100 rounded-lg group transition-colors">
-                              <div className="overflow-hidden">
+                              <div className="overflow-hidden flex-1 mr-2">
                                 <p className="text-sm font-bold text-slate-800 truncate">{emp.name}</p>
-                                <p className="text-[10px] text-slate-500 truncate">{emp.type}</p>
+                                <select 
+                                  value={emp.type}
+                                  onChange={(e) => handleUpdateRole(emp.id, e.target.value)}
+                                  disabled={isSubmitting}
+                                  className="mt-0.5 text-[10px] text-slate-600 bg-white border border-slate-200 rounded py-0.5 px-1 w-full max-w-[140px] outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                  {!["Nurse Intern", "RN- Specialty", "RN- Subspecialty", "Clinical Partner", "Administrative Partner", "RN", "Clinical"].includes(emp.type) && (
+                                     <option value={emp.type}>{emp.type}</option>
+                                  )}
+                                  <option value="Nurse Intern">Nurse Intern</option>
+                                  <option value="RN- Specialty">RN- Specialty</option>
+                                  <option value="RN- Subspecialty">RN- Subspecialty</option>
+                                  <option value="Clinical Partner">Clinical Partner</option>
+                                  <option value="Administrative Partner">Administrative Partner</option>
+                                  <option value="RN">RN</option>
+                                  <option value="Clinical">Clinical</option>
+                                </select>
                               </div>
                               <button
                                 onClick={() => handleRemoveEmployee(emp.id, emp.name)}
@@ -1441,5 +1478,3 @@
     </script>
 </body>
 </html>
-
-```
