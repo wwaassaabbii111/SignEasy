@@ -553,6 +553,10 @@
           const [newTplRoles, setNewTplRoles] = useState(['All']);
           const [newTplReqLeader, setNewTplReqLeader] = useState(true);
 
+          // NEW STATES FOR IMAGE STAGING
+          const [stagingImages, setStagingImages] = useState([]);
+          const [stagingTemplateId, setStagingTemplateId] = useState(null);
+
           const AVAILABLE_ROLES = [
             { id: 'All', label: 'All Staff (Universal)' },
             { id: 'Clinical', label: 'All Clinical (Excludes Admin)' },
@@ -811,6 +815,98 @@
             } finally {
               setIsSubmitting(false);
             }
+          };
+
+          // --- NEW: INTERCEPT FILES AND SUPPORT IMAGE STAGING ---
+          const handleFileSelect = async (formId, files) => {
+            if (!files || files.length === 0) return;
+            const fileArray = Array.from(files);
+
+            // If it's a single PDF, proceed with the original upload logic
+            if (fileArray.length === 1 && fileArray[0].type === 'application/pdf') {
+              handleTemplateUpload(formId, fileArray[0]);
+            } else {
+              // If they are images, convert them to base64 and open the staging modal
+              const imagePromises = fileArray.map(file => blobToBase64(file));
+              try {
+                const base64Images = await Promise.all(imagePromises);
+                const staged = base64Images.map((src, idx) => ({ id: Date.now() + idx, src }));
+                setStagingImages(staged);
+                setStagingTemplateId(formId);
+              } catch (e) {
+                alert("Error reading images");
+              }
+            }
+          };
+
+          // Stitch images into a single PDF
+          const convertImagesToPDF = async (images) => {
+            await ensurePDFLib();
+            const { PDFDocument } = window.PDFLib;
+            const pdfDoc = await PDFDocument.create();
+
+            for (const img of images) {
+              let imageEmbed;
+              // Fetch array buffer from data URI
+              const response = await fetch(img.src);
+              const imageBytes = await response.arrayBuffer();
+
+              if (img.src.startsWith('data:image/jpeg') || img.src.startsWith('data:image/jpg')) {
+                imageEmbed = await pdfDoc.embedJpg(imageBytes);
+              } else if (img.src.startsWith('data:image/png')) {
+                imageEmbed = await pdfDoc.embedPng(imageBytes);
+              } else {
+                continue; // Skip unsupported types
+              }
+
+              // Create a page with the exact dimensions of the image
+              const { width, height } = imageEmbed.scale(1);
+              const page = pdfDoc.addPage([width, height]);
+              page.drawImage(imageEmbed, { x: 0, y: 0, width, height });
+            }
+            return await pdfDoc.saveAsBase64({ dataUri: true });
+          };
+
+          // Confirm Staging, Build PDF, and Save to Firestore
+          const handleConfirmImageStaging = async () => {
+            setIsSubmitting(true);
+            try {
+              const pdfBase64 = await convertImagesToPDF(stagingImages);
+              
+              // Firestore 1MB limit check
+              if (pdfBase64.length * 0.75 > 900000) {
+                alert("Combined images are too large! Try compressing your JPGs before uploading.");
+                setIsSubmitting(false);
+                return;
+              }
+
+              const existingMappings = templates[stagingTemplateId]?.mappings || null;
+              await setDoc(doc(db, 'templates', stagingTemplateId), {
+                base64: pdfBase64,
+                mappings: existingMappings,
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+
+              alert("Images successfully compiled into PDF template!\n\nPlease click \"Configure Layout\" to verify that the signature locations align with your new document.");
+              setStagingImages([]);
+              setStagingTemplateId(null);
+            } catch(e) {
+              console.error(e);
+              alert("Error building PDF from images.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          };
+
+          // Reorder images in staging
+          const moveStagedImage = (index, direction) => {
+            const newImages = [...stagingImages];
+            if (direction === -1 && index > 0) {
+              [newImages[index - 1], newImages[index]] = [newImages[index], newImages[index - 1]];
+            } else if (direction === 1 && index < newImages.length - 1) {
+              [newImages[index + 1], newImages[index]] = [newImages[index], newImages[index + 1]];
+            }
+            setStagingImages(newImages);
           };
 
           const handleTemplateUpload = async (formId, file) => {
@@ -1238,6 +1334,43 @@
                      </div>
                   </div>
                 )}
+
+                {/* NEW IMAGE STAGING MODAL */}
+                {stagingImages.length > 0 && (
+                  <div className="fixed inset-0 bg-slate-900/90 z-[70] flex flex-col p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl w-full max-w-4xl mx-auto flex flex-col h-full overflow-hidden shadow-2xl">
+                      <div className="p-4 border-b flex justify-between items-center bg-slate-50 shrink-0">
+                        <div>
+                          <h3 className="font-bold text-lg text-slate-800">Arrange Pages</h3>
+                          <p className="text-xs text-slate-500">Ensure the signature page is placed at the very end.</p>
+                        </div>
+                        <div className="space-x-2 shrink-0">
+                          <button onClick={() => { setStagingImages([]); setStagingTemplateId(null); }} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-md font-semibold transition-colors">Cancel</button>
+                          <button onClick={handleConfirmImageStaging} disabled={isSubmitting} className="px-6 py-2 bg-indigo-600 text-white text-sm rounded-md font-bold shadow-md hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                            {isSubmitting ? 'Stitching PDF...' : 'Confirm & Build PDF'}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="flex-1 overflow-y-auto p-6 bg-slate-200 custom-scrollbar">
+                        <div className="flex flex-wrap gap-4 justify-center">
+                          {stagingImages.map((img, index) => (
+                            <div key={img.id} className="bg-white p-2 rounded-lg shadow-md border border-slate-300 w-48 flex flex-col items-center">
+                              <span className="text-xs font-bold text-slate-500 mb-2">Page {index + 1}</span>
+                              <div className="w-full h-64 bg-slate-100 mb-2 overflow-hidden border border-slate-200 flex items-center justify-center">
+                                <img src={img.src} alt={`Page ${index + 1}`} className="object-contain max-h-full max-w-full pointer-events-none" />
+                              </div>
+                              <div className="flex w-full justify-between gap-1">
+                                <button onClick={() => moveStagedImage(index, -1)} disabled={index === 0} className="flex-1 p-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded text-slate-600 transition-colors"><ChevronLeft size={16} className="mx-auto"/></button>
+                                <button onClick={() => moveStagedImage(index, 1)} disabled={index === stagingImages.length - 1} className="flex-1 p-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 rounded text-slate-600 transition-colors"><ChevronRight size={16} className="mx-auto"/></button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <header className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-10">
                   <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
@@ -1285,7 +1418,7 @@
                       <div className="flex justify-between items-center mb-3">
                          <h2 className="font-bold text-lg flex items-center gap-2 text-slate-800"><User size={20} className="text-red-500"/> Manage Staff</h2>
                          <button onClick={handleGlobalSync} disabled={isSubmitting} className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 font-bold flex items-center gap-1 shadow-sm transition-colors disabled:opacity-50"><RefreshCw size={12}/> Sync All Staff</button>
-                      </div>
+                       </div>
                       
                       <div className="relative mb-3 shrink-0">
                          <Search className="absolute left-2.5 top-2.5 text-slate-400" size={14}/>
@@ -1372,7 +1505,7 @@
                            <Plus size={16}/> Add Custom Form
                          </button>
                       </div>
-                      <p className="text-xs text-slate-500 mb-4">Click the pencil icon to edit template assignment rules. Upload physical PDFs to map signature locations.</p>
+                      <p className="text-xs text-slate-500 mb-4">Click the pencil icon to edit template assignment rules. Upload multiple JPG/PNG images to automatically build a PDF.</p>
                       
                       <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
                         {allFormTypes.map(ft => {
@@ -1396,7 +1529,13 @@
                                    {hasPdf && (
                                      <label className="text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer" title="Replace PDF">
                                        <Upload size={16}/>
-                                       <input type="file" accept="application/pdf" className="hidden" onChange={(e) => handleTemplateUpload(ft.id, e.target.files[0])} />
+                                       <input 
+                                         type="file" 
+                                         accept="application/pdf, image/jpeg, image/png" 
+                                         multiple 
+                                         className="hidden" 
+                                         onChange={(e) => handleFileSelect(ft.id, e.target.files)} 
+                                       />
                                      </label>
                                    )}
 
@@ -1414,8 +1553,14 @@
                                <div className="flex items-center gap-2 shrink-0">
                                   {!hasPdf ? (
                                     <label className="text-xs px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-md cursor-pointer hover:bg-red-100 font-bold whitespace-nowrap shadow-sm">
-                                      Upload PDF
-                                      <input type="file" accept="application/pdf" className="hidden" onChange={(e) => handleTemplateUpload(ft.id, e.target.files[0])} />
+                                      Upload File(s)
+                                      <input 
+                                        type="file" 
+                                        accept="application/pdf, image/jpeg, image/png" 
+                                        multiple 
+                                        className="hidden" 
+                                        onChange={(e) => handleFileSelect(ft.id, e.target.files)} 
+                                      />
                                     </label>
                                   ) : (
                                     <>
