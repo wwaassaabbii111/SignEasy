@@ -87,6 +87,32 @@
           });
         };
 
+        const compressImage = (base64Str, maxWidth = 900, quality = 0.6) => {
+          return new Promise((resolve) => {
+            const img = new Image();
+            img.src = base64Str;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+
+              // Calculate new dimensions if the image is too large
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              
+              // Draw image on canvas and export as compressed JPEG
+              ctx.drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+          });
+        };
+
         const ensurePDFLib = async () => {
           if (!window.PDFLib) {
             const script = document.createElement('script');
@@ -826,15 +852,23 @@
             if (fileArray.length === 1 && fileArray[0].type === 'application/pdf') {
               handleTemplateUpload(formId, fileArray[0]);
             } else {
-              // If they are images, convert them to base64 and open the staging modal
-              const imagePromises = fileArray.map(file => blobToBase64(file));
+              // If they are images, convert them, compress them, and open staging
               try {
-                const base64Images = await Promise.all(imagePromises);
-                const staged = base64Images.map((src, idx) => ({ id: Date.now() + idx, src }));
+                const imagePromises = fileArray.map(async (file) => {
+                  const rawBase64 = await blobToBase64(file);
+                  // Compress the image (900px wide, 60% quality is highly legible but tiny file size)
+                  const compressedBase64 = await compressImage(rawBase64, 900, 0.6);
+                  return compressedBase64;
+                });
+                
+                const compressedImages = await Promise.all(imagePromises);
+                const staged = compressedImages.map((src, idx) => ({ id: Date.now() + idx, src }));
+                
                 setStagingImages(staged);
                 setStagingTemplateId(formId);
               } catch (e) {
-                alert("Error reading images");
+                console.error(e);
+                alert("Error reading and compressing images");
               }
             }
           };
@@ -875,7 +909,7 @@
               
               // Firestore 1MB limit check
               if (pdfBase64.length * 0.75 > 900000) {
-                alert("Combined images are too large! Try compressing your JPGs before uploading.");
+                alert("Combined images are still too large! Please try compressing your JPGs further before uploading.");
                 setIsSubmitting(false);
                 return;
               }
