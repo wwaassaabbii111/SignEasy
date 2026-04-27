@@ -819,17 +819,21 @@
               alert("File is too large! Firestore limits documents to 1MB. Please compress your PDF to under 800KB before uploading.");
               return;
             }
+            setIsSubmitting(true);
             try {
               const base64 = await blobToBase64(file);
+              const existingMappings = templates[formId]?.mappings || null;
               await setDoc(doc(db, 'templates', formId), {
                 base64: base64,
-                mappings: null, 
+                mappings: existingMappings, 
                 updatedAt: serverTimestamp()
               }, { merge: true });
-              alert(`Template loaded. Click "Configure Layout" to set signature locations.`);
+              alert(`Template PDF loaded successfully!\n\nPlease click "Configure Layout" to verify that the signature locations align with your new document.`);
             } catch (e) {
               console.error(e);
               alert("Upload failed.");
+            } finally {
+              setIsSubmitting(false);
             }
           };
 
@@ -1388,6 +1392,14 @@
                                      setNewTplReqLeader(ft.requiresLeader); 
                                      setShowAddTemplate(true); 
                                    }} className="text-slate-400 hover:text-blue-600 transition-colors" title="Edit Template Settings"><Edit size={16}/></button>
+                                   
+                                   {hasPdf && (
+                                     <label className="text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer" title="Replace PDF">
+                                       <Upload size={16}/>
+                                       <input type="file" accept="application/pdf" className="hidden" onChange={(e) => handleTemplateUpload(ft.id, e.target.files[0])} />
+                                     </label>
+                                   )}
+
                                    {(isCustom || hasPdf) && (
                                      <button onClick={() => handleDeleteTemplate(ft.id, ft.title, isCustom)} className="text-slate-400 hover:text-red-600 transition-colors" title={isCustom ? "Delete Custom Template" : "Remove Uploaded PDF"}><Trash2 size={16}/></button>
                                    )}
