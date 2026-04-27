@@ -152,116 +152,11 @@
           return doc.output('datauristring');
         };
 
-        // --- RASTERIZE FALLBACK FOR PROTECTED PDFS ---
-        const rasterizeAndSignPDF = async (pdfBase64, signatureBase64, mappings, name, isLeader = false, employeeName = "") => {
-          await ensurePdfJs();
-          if (!window.jspdf) {
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-            document.body.appendChild(script);
-            await new Promise(resolve => script.onload = resolve);
-          }
-          
-          const base64Data = pdfBase64.split(',')[1] || pdfBase64;
-          const binary = window.atob(base64Data);
-          const bytes = new Uint8Array(binary.length);
-          for(let i=0; i<binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-          const doc = await window.pdfjsLib.getDocument({data: bytes}).promise;
-          const { jsPDF } = window.jspdf;
-          
-          const pdf = new jsPDF('p', 'pt', 'letter');
-          pdf.deletePage(1); // jsPDF initializes with a blank page, remove it
-
-          const sigImg = new Image();
-          sigImg.src = signatureBase64;
-          await new Promise(r => { sigImg.onload = r; sigImg.onerror = r; });
-
-          for (let i = 1; i <= doc.numPages; i++) {
-              const page = await doc.getPage(i);
-              const viewport = page.getViewport({scale: 2.0}); // Render at 2x scale for quality
-              
-              const canvas = document.createElement('canvas');
-              canvas.width = viewport.width;
-              canvas.height = viewport.height;
-              const ctx = canvas.getContext('2d');
-              
-              await page.render({canvasContext: ctx, viewport}).promise;
-
-              if (i === doc.numPages && signatureBase64) {
-                  const targetKeys = Object.keys(mappings || {}).filter(k => isLeader ? (k.startsWith('leader') && !k.startsWith('leaderdate')) : (k.startsWith('staff') && !k.startsWith('staffdate') && !k.startsWith('staffname')));
-                  const dateKeys = Object.keys(mappings || {}).filter(k => {
-                     if (isLeader) return k.startsWith('leaderdate');
-                     return k.startsWith('staffdate') || k === 'date' || (k.startsWith('date') && !k.startsWith('leaderdate'));
-                  });
-                  const nameKeys = (!isLeader) ? Object.keys(mappings || {}).filter(k => k.startsWith('staffname')) : [];
-                  
-                  const scale = 0.8;
-                  const sigW = 140 * scale * 2.0; 
-                  const sigH = 45 * scale * 2.0;
-                  const textSize = 7 * 2.0;
-                  const dateSize = 10 * 2.0;
-                  const nameSize = 10 * 2.0;
-                  const dateStr = new Date().toLocaleDateString();
-
-                  ctx.fillStyle = "black";
-                  
-                  if (targetKeys.length > 0) {
-                      for (const key of targetKeys) {
-                          const map = mappings[key];
-                          const x = map.xPct * canvas.width;
-                          const y = map.yPct * canvas.height;
-                          
-                          ctx.drawImage(sigImg, x, y, sigW, sigH);
-                          ctx.font = `${textSize}px Helvetica, Arial, sans-serif`;
-                          ctx.fillText(`Signed by: ${name}`, x, y - (4 * 2.0));
-                      }
-                  }
-                  
-                  if (dateKeys.length > 0) {
-                      for (const key of dateKeys) {
-                          const map = mappings[key];
-                          const x = map.xPct * canvas.width;
-                          const y = map.yPct * canvas.height;
-                          ctx.font = `${dateSize}px Helvetica, Arial, sans-serif`;
-                          ctx.fillText(dateStr, x, y + dateSize);
-                      }
-                  }
-                  
-                  if (nameKeys.length > 0) {
-                      for (const key of nameKeys) {
-                          const map = mappings[key];
-                          const x = map.xPct * canvas.width;
-                          const y = map.yPct * canvas.height;
-                          ctx.font = `${nameSize}px Helvetica, Arial, sans-serif`;
-                          ctx.fillText(employeeName, x, y + nameSize);
-                      }
-                  }
-              }
-              
-              // Compress page snapshot to JPEG
-              const imgData = canvas.toDataURL('image/jpeg', 0.85); 
-              
-              // Map to standard PDF dimensions
-              const pdfWidth = pdf.internal.pageSize.getWidth();
-              const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-              
-              pdf.addPage([pdfWidth, pdfHeight]);
-              pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-          }
-          
-          return pdf.output('datauristring');
-        };
-
         const affixSignatureToPDF = async (pdfBase64, signatureBase64, mappings, name, isLeader = false, employeeName = "") => {
           await ensurePDFLib();
           try {
             const { PDFDocument, rgb } = window.PDFLib;
             const pdfDoc = await PDFDocument.load(pdfBase64);
-            
-            // Check if document strictly prohibits modification
-            if (pdfDoc.isEncrypted) throw new Error("Protected/Encrypted PDF detected.");
-
             const pngImage = await pdfDoc.embedPng(signatureBase64);
             const pages = pdfDoc.getPages();
             const lastPage = pages[pages.length - 1]; 
@@ -314,11 +209,9 @@
             }
 
             return await pdfDoc.saveAsBase64({ dataUri: true });
-
           } catch (err) {
-            console.warn("PDF-lib failed (Likely a protected or encrypted PDF). Converting pages to raster images...", err);
-            // Engage the fallback process: flatten PDF to JPEG images, sign the canvas, output fresh unrestricted PDF.
-            return await rasterizeAndSignPDF(pdfBase64, signatureBase64, mappings, name, isLeader, employeeName);
+            console.error("PDF Stamp Error:", err);
+            throw new Error("Failed to affix signature.");
           }
         };
 
