@@ -96,7 +96,6 @@
               let width = img.width;
               let height = img.height;
 
-              // Calculate new dimensions if the image is too large
               if (width > maxWidth) {
                 height = Math.round((height * maxWidth) / width);
                 width = maxWidth;
@@ -106,7 +105,6 @@
               canvas.height = height;
               const ctx = canvas.getContext('2d');
               
-              // Draw image on canvas and export as compressed JPEG
               ctx.drawImage(img, 0, 0, width, height);
               resolve(canvas.toDataURL('image/jpeg', quality));
             };
@@ -222,7 +220,6 @@
               }
             }
 
-            // Only apply staff printed name when the employee is signing
             if (!isLeader) {
                const nameKeys = Object.keys(mappings || {}).filter(k => k.startsWith('staffname'));
                for (const key of nameKeys) {
@@ -579,7 +576,6 @@
           const [newTplRoles, setNewTplRoles] = useState(['All']);
           const [newTplReqLeader, setNewTplReqLeader] = useState(true);
 
-          // NEW STATES FOR IMAGE STAGING
           const [stagingImages, setStagingImages] = useState([]);
           const [stagingTemplateId, setStagingTemplateId] = useState(null);
 
@@ -641,13 +637,9 @@
 
           const isRoleMatch = (defRole, empRole) => {
             const roles = Array.isArray(defRole) ? defRole : [defRole];
-            
             if (roles.includes('All')) return true;
-            if (roles.includes(empRole)) return true; // Strict Match (Used for JDs)
-            
-            // Umbrella: Clinical applies to everyone except Admin Partner
+            if (roles.includes(empRole)) return true;
             if (roles.includes('Clinical') && empRole !== 'Unit Clerk/ Admin Partner') return true;
-            
             return false;
           };
 
@@ -712,12 +704,13 @@
             }
           };
 
-          // --- GLOBAL SYNC ALL STAFF ---
+          // Updated Global Sync to repair stuck forms
           const handleGlobalSync = async () => {
              if(!window.confirm("This will scan ALL employees, assign any missing forms, and REMOVE pending forms that no longer match their role. Continue?")) return;
              setIsSubmitting(true);
              let totalAdded = 0;
              let totalRemoved = 0;
+             let totalRepaired = 0;
 
              try {
                 for (const emp of employees) {
@@ -725,7 +718,6 @@
                     const applicableFormIds = applicableForms.map(f => f.id);
                     const empForms = forms.filter(f => f.employeeId === emp.id);
                     
-                    // Remove pending forms that are no longer applicable
                     for (const f of empForms) {
                         if (f.status.startsWith('pending') && !applicableFormIds.includes(f.templateId)) {
                             await deleteDoc(doc(db, 'forms', f.id));
@@ -733,9 +725,25 @@
                         }
                     }
                     
-                    // Add missing applicable forms
                     const keptForms = empForms.filter(f => applicableFormIds.includes(f.templateId) || !f.status.startsWith('pending'));
                     const existingTemplateIds = keptForms.map(f => f.templateId);
+
+                    for (const f of keptForms) {
+                        const def = applicableForms.find(x => x.id === f.templateId);
+                        if (def) {
+                            let updates = {};
+                            if (f.requiresLeader !== def.requiresLeader) updates.requiresLeader = def.requiresLeader;
+
+                            if (f.status === 'pending_leader' && def.requiresLeader === false) {
+                                updates.status = 'completed';
+                                totalRepaired++;
+                            }
+
+                            if (Object.keys(updates).length > 0) {
+                                await updateDoc(doc(db, 'forms', f.id), updates);
+                            }
+                        }
+                    }
                     
                     for (const def of applicableForms) {
                         if (!existingTemplateIds.includes(def.id)) {
@@ -753,7 +761,7 @@
                         }
                     }
                 }
-                alert(`Global Sync Complete!\n\nAdded: ${totalAdded} missing forms.\nRemoved: ${totalRemoved} outdated pending forms.`);
+                alert(`Global Sync Complete!\n\nAdded: ${totalAdded} missing forms.\nRemoved: ${totalRemoved} outdated pending forms.\nRepaired: ${totalRepaired} forms unstuck.`);
              } catch(e) {
                 console.error(e);
                 alert("Error during global sync.");
@@ -767,7 +775,6 @@
             try {
               await updateDoc(doc(db, 'employees', empId), { type: newRole });
               
-              // Run a micro-sync just for this employee so changes apply immediately
               const applicableForms = allFormTypes.filter(def => isRoleMatch(def.role, newRole));
               const applicableFormIds = applicableForms.map(f => f.id);
               const empForms = forms.filter(f => f.employeeId === empId);
@@ -843,20 +850,16 @@
             }
           };
 
-          // --- NEW: INTERCEPT FILES AND SUPPORT IMAGE STAGING ---
           const handleFileSelect = async (formId, files) => {
             if (!files || files.length === 0) return;
             const fileArray = Array.from(files);
 
-            // If it's a single PDF, proceed with the original upload logic
             if (fileArray.length === 1 && fileArray[0].type === 'application/pdf') {
               handleTemplateUpload(formId, fileArray[0]);
             } else {
-              // If they are images, convert them, compress them, and open staging
               try {
                 const imagePromises = fileArray.map(async (file) => {
                   const rawBase64 = await blobToBase64(file);
-                  // Compress the image (900px wide, 60% quality is highly legible but tiny file size)
                   const compressedBase64 = await compressImage(rawBase64, 900, 0.6);
                   return compressedBase64;
                 });
@@ -873,7 +876,6 @@
             }
           };
 
-          // Stitch images into a single PDF
           const convertImagesToPDF = async (images) => {
             await ensurePDFLib();
             const { PDFDocument } = window.PDFLib;
@@ -881,7 +883,6 @@
 
             for (const img of images) {
               let imageEmbed;
-              // Fetch array buffer from data URI
               const response = await fetch(img.src);
               const imageBytes = await response.arrayBuffer();
 
@@ -890,10 +891,9 @@
               } else if (img.src.startsWith('data:image/png')) {
                 imageEmbed = await pdfDoc.embedPng(imageBytes);
               } else {
-                continue; // Skip unsupported types
+                continue; 
               }
 
-              // Create a page with the exact dimensions of the image
               const { width, height } = imageEmbed.scale(1);
               const page = pdfDoc.addPage([width, height]);
               page.drawImage(imageEmbed, { x: 0, y: 0, width, height });
@@ -901,13 +901,11 @@
             return await pdfDoc.saveAsBase64({ dataUri: true });
           };
 
-          // Confirm Staging, Build PDF, and Save to Firestore
           const handleConfirmImageStaging = async () => {
             setIsSubmitting(true);
             try {
               const pdfBase64 = await convertImagesToPDF(stagingImages);
               
-              // Firestore 1MB limit check
               if (pdfBase64.length * 0.75 > 900000) {
                 alert("Combined images are still too large! Please try compressing your JPGs further before uploading.");
                 setIsSubmitting(false);
@@ -932,7 +930,6 @@
             }
           };
 
-          // Reorder images in staging
           const moveStagedImage = (index, direction) => {
             const newImages = [...stagingImages];
             if (direction === -1 && index > 0) {
@@ -974,6 +971,7 @@
             setMappingMode(null);
           };
 
+          // Updated processSignature
           const processSignature = async (signatureData) => {
             if (!selectedForm) return;
             setIsSubmitting(true);
@@ -988,6 +986,9 @@
               const signedPdfBase64 = await affixSignatureToPDF(pdfToSign, signatureData, templateDoc?.mappings, signerName, isLeaderMode, selectedForm.employeeName);
               const updateData = { currentPdf: signedPdfBase64 };
 
+              const formDef = allFormTypes.find(def => def.id === selectedForm.templateId);
+              const actualRequiresLeader = formDef !== undefined ? formDef.requiresLeader : selectedForm.requiresLeader;
+
               if (isLeaderMode) {
                 updateData.leaderSignature = signatureData;
                 updateData.leaderName = leaderName;
@@ -996,7 +997,7 @@
               } else {
                 updateData.employeeSignature = signatureData;
                 updateData.employeeSignedAt = serverTimestamp();
-                updateData.status = selectedForm.requiresLeader ? 'pending_leader' : 'completed';
+                updateData.status = actualRequiresLeader ? 'pending_leader' : 'completed';
               }
               await updateDoc(doc(db, 'forms', selectedForm.id), updateData);
               setSelectedForm(prev => ({ ...prev, ...updateData }));
@@ -1041,16 +1042,31 @@
              }
           };
 
+          // Updated downloadPDF to use Blob approach
           const downloadPDF = async (form) => {
             setIsSubmitting(true);
             try {
               const basePdf = await generateFormPdfBase64(form, templates);
+              
+              const base64Data = basePdf.split(',')[1];
+              const byteCharacters = window.atob(base64Data);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              
+              const blob = new Blob([byteArray], { type: 'application/pdf' });
+              const blobUrl = URL.createObjectURL(blob);
+
               const link = document.createElement('a'); 
-              link.href = basePdf;
+              link.href = blobUrl;
               link.download = `${form.title.replace(/[\s\/]/g,'_')}_${form.employeeName}.pdf`;
               document.body.appendChild(link); 
               link.click(); 
               document.body.removeChild(link);
+              
+              setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
             } catch (e) {
               console.error(e);
               alert("Error downloading PDF.");
@@ -1369,7 +1385,6 @@
                   </div>
                 )}
 
-                {/* NEW IMAGE STAGING MODAL */}
                 {stagingImages.length > 0 && (
                   <div className="fixed inset-0 bg-slate-900/90 z-[70] flex flex-col p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl w-full max-w-4xl mx-auto flex flex-col h-full overflow-hidden shadow-2xl">
