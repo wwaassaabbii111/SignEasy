@@ -42,7 +42,7 @@
         import { AlertCircle, FileText, CheckCircle, User, PenTool, Clock, Shield, Briefcase, ChevronRight, X, Download, LogOut, Upload, Users, MousePointer2, Move, Search, Database, ChevronsLeft, ChevronLeft, ChevronsRight, Archive, Trash2, Plus, Lock, RefreshCw, Edit } from 'lucide-react';
 
         // =====================================================================
-        // YOUR FIREBASE CONFIGURATION (Auto-Injected)
+        // YOUR FIREBASE CONFIGURATION
         // =====================================================================
         const firebaseConfig = {
           apiKey: "AIzaSyBtszfWaiZFbIUQ-OvOJzUwRGfIF9y2Dzw",
@@ -53,7 +53,6 @@
           appId: "1:838426317549:web:3f6bad28a16fbaabaeb2e4",
           measurementId: "G-YBDB20PWBZ"
         };
-        // =====================================================================
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -62,15 +61,18 @@
         // --- DEFAULT FORM DEFINITIONS ---
         const FORMS_LIBRARY = {
           FALL_BUNDLE: { id: 'FALL_BUNDLE', title: "Fall Prevention Bundle - Clinical Agreement", role: 'Clinical', requiresLeader: true },
-          RN_HANDOFF: { id: 'RN_HANDOFF', title: "RN/RN Hand-Off Communication Agreement", role: 'RN', requiresLeader: true },
-          CP_HANDOFF: { id: 'CP_HANDOFF', title: "CP/CP Hand-Off Communication Agreement", role: 'Clinical Partner 2', requiresLeader: true },
+          FALL_NON_CLINICAL: { id: 'FALL_NON_CLINICAL', title: "Fall Prevention Bundle - Non-Clinical Agreement", role: 'Unit Clerk/ Admin Partner', requiresLeader: true, content: "Non-Clinical Falls Acknowledgment specific to Unit Clerks." },
+          RN_HANDOFF: { id: 'RN_HANDOFF', title: "RN/RN Hand-Off Communication Agreement", role: ['RN-Sub-Specialty/Procedural', 'RN- DPC New Grad', 'RN-Specialty/Non-Procedural', 'Pool RN-SpecNonProc/Sub-SpecPr'], requiresLeader: true },
+          CP_HANDOFF: { id: 'CP_HANDOFF', title: "CP/CP Hand-Off Communication Agreement", role: ['Clinical Partner 2', 'Nurse Intern'], requiresLeader: true },
           NI_ROLE: { id: 'NI_ROLE', title: "Nurse Intern - ROLE CLARIFICATION", role: 'Nurse Intern', requiresLeader: true },
           NI_ACK: { id: 'NI_ACK', title: "Nurse Intern Acknowledgment", role: 'Nurse Intern', requiresLeader: true },
           JD_ADMIN: { id: 'JD_ADMIN', title: "Job Description: Unit Clerk/Admin Partner", role: 'Unit Clerk/ Admin Partner', requiresLeader: true },
           JD_CP: { id: 'JD_CP', title: "Job Description: Clinical Partner 2", role: 'Clinical Partner 2', requiresLeader: true },
           JD_NI: { id: 'JD_NI', title: "Job Description: Nurse Intern", role: 'Nurse Intern', requiresLeader: true },
           JD_RN_SUB: { id: 'JD_RN_SUB', title: "Job Description: RN-Sub-Specialty/Procedural", role: 'RN-Sub-Specialty/Procedural', requiresLeader: true },
-          JD_RN_NEW: { id: 'JD_RN_NEW', title: "Job Description: RN-DPC New Grad", role: 'RN- DPC New Grad', requiresLeader: true }
+          JD_RN_NEW: { id: 'JD_RN_NEW', title: "Job Description: RN-DPC New Grad", role: 'RN- DPC New Grad', requiresLeader: true },
+          JD_RN_SPEC: { id: 'JD_RN_SPEC', title: "Job Description: RN-Specialty/Non-Procedural", role: 'RN-Specialty/Non-Procedural', requiresLeader: true },
+          JD_POOL_RN: { id: 'JD_POOL_RN', title: "Job Description: Pool RN", role: 'Pool RN-SpecNonProc/Sub-SpecPr', requiresLeader: true, content: "Pending Official Job Description for Pool RN..." }
         };
 
         const FORM_TYPES = Object.values(FORMS_LIBRARY);
@@ -122,8 +124,6 @@
           }
           
           const formDef = FORMS_LIBRARY[form.templateId] || { title: form.title, requiresLeader: form.requiresLeader };
-          
-          // Re-injecting content so the text renders if no PDF is uploaded.
           const content = formDef?.content || "This is a custom form template.\n\nThe administrator has not yet uploaded the official PDF file for this form. You can still securely sign and acknowledge this document below.";
           
           const { jsPDF } = window.jspdf;
@@ -152,7 +152,7 @@
           return doc.output('datauristring');
         };
 
-        const affixSignatureToPDF = async (pdfBase64, signatureBase64, mappings, name, isLeader = false) => {
+        const affixSignatureToPDF = async (pdfBase64, signatureBase64, mappings, name, isLeader = false, employeeName = "") => {
           await ensurePDFLib();
           try {
             const { PDFDocument, rgb } = window.PDFLib;
@@ -166,32 +166,48 @@
             const sigH = 45 * scale;  
             const textSize = 7; 
             const dateSize = 10; 
+            const nameSize = 10;
             const dateStr = new Date().toLocaleDateString();
             
-            const targetKeys = Object.keys(mappings || {}).filter(k => isLeader ? (k.startsWith('leader') && !k.startsWith('leaderdate')) : (k.startsWith('staff') && !k.startsWith('staffdate')));
+            const targetKeys = Object.keys(mappings || {}).filter(k => isLeader ? (k.startsWith('leader') && !k.startsWith('leaderdate')) : (k.startsWith('staff') && !k.startsWith('staffdate') && !k.startsWith('staffname')));
             const dateKeys = Object.keys(mappings || {}).filter(k => {
                if (isLeader) return k.startsWith('leaderdate');
                return k.startsWith('staffdate') || k === 'date' || (k.startsWith('date') && !k.startsWith('leaderdate'));
             });
 
-            if (targetKeys.length === 0 && dateKeys.length === 0) return pdfBase64; 
-
-            for (const key of targetKeys) {
-                const map = mappings[key];
-                const x = map.xPct * width;
-                const boxTopY = height - (map.yPct * height);
-                const sigY = boxTopY - 35; 
-                lastPage.drawImage(pngImage, { x, y: sigY, width: sigW, height: sigH });
-                lastPage.drawText(`Signed by: ${name}`, { x, y: sigY - 8, size: textSize, color: rgb(0, 0, 0) });
+            if (targetKeys.length > 0) {
+              for (const key of targetKeys) {
+                  const map = mappings[key];
+                  const x = map.xPct * width;
+                  const boxTopY = height - (map.yPct * height);
+                  const sigY = boxTopY - 35; 
+                  lastPage.drawImage(pngImage, { x, y: sigY, width: sigW, height: sigH });
+                  lastPage.drawText(`Signed by: ${name}`, { x, y: sigY - 8, size: textSize, color: rgb(0, 0, 0) });
+              }
             }
 
-            for (const key of dateKeys) {
-                const map = mappings[key];
-                const x = map.xPct * width;
-                const boxTopY = height - (map.yPct * height);
-                const dateY = boxTopY - 20; 
-                lastPage.drawText(dateStr, { x, y: dateY, size: dateSize, color: rgb(0,0,0) });
+            if (dateKeys.length > 0) {
+              for (const key of dateKeys) {
+                  const map = mappings[key];
+                  const x = map.xPct * width;
+                  const boxTopY = height - (map.yPct * height);
+                  const dateY = boxTopY - 20; 
+                  lastPage.drawText(dateStr, { x, y: dateY, size: dateSize, color: rgb(0,0,0) });
+              }
             }
+
+            // Only apply staff printed name when the employee is signing
+            if (!isLeader) {
+               const nameKeys = Object.keys(mappings || {}).filter(k => k.startsWith('staffname'));
+               for (const key of nameKeys) {
+                  const map = mappings[key];
+                  const x = map.xPct * width;
+                  const boxTopY = height - (map.yPct * height);
+                  const nameY = boxTopY - 20; 
+                  lastPage.drawText(employeeName, { x, y: nameY, size: nameSize, color: rgb(0,0,0) });
+               }
+            }
+
             return await pdfDoc.saveAsBase64({ dataUri: true });
           } catch (err) {
             console.error("PDF Stamp Error:", err);
@@ -203,8 +219,8 @@
           const templateDoc = templates[form.templateId];
           let basePdf = templateDoc?.base64;
           if (!basePdf) basePdf = await createFallbackPDF(form);
-          if (form.employeeSignature) basePdf = await affixSignatureToPDF(basePdf, form.employeeSignature, templateDoc?.mappings, form.employeeName, false);
-          if (form.leaderSignature) basePdf = await affixSignatureToPDF(basePdf, form.leaderSignature, templateDoc?.mappings, form.leaderName || "Leader", true);
+          if (form.employeeSignature) basePdf = await affixSignatureToPDF(basePdf, form.employeeSignature, templateDoc?.mappings, form.employeeName, false, form.employeeName);
+          if (form.leaderSignature) basePdf = await affixSignatureToPDF(basePdf, form.leaderSignature, templateDoc?.mappings, form.leaderName || "Leader", true, form.employeeName);
           return basePdf;
         };
 
@@ -452,6 +468,7 @@
                   <p className="text-sm font-medium text-slate-700 flex items-center gap-2"><Move size={16}/> Map Fields (Last Page)</p>
                   <div className="flex gap-2 flex-wrap">
                     <button onClick={()=>addMapping('staff')} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 transition-colors">+ Staff Sig</button>
+                    <button onClick={()=>addMapping('staffname')} className="text-xs bg-teal-50 text-teal-700 border border-teal-200 px-2 py-1 rounded hover:bg-teal-100 transition-colors">+ Staff Name</button>
                     <button onClick={()=>addMapping('staffdate')} className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded hover:bg-green-100 transition-colors">+ Staff Date</button>
                     <button onClick={()=>addMapping('leader')} className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2 py-1 rounded hover:bg-purple-100 transition-colors">+ Leader Sig</button>
                     <button onClick={()=>addMapping('leaderdate')} className="text-xs bg-orange-50 text-orange-700 border border-orange-200 px-2 py-1 rounded hover:bg-orange-100 transition-colors">+ Leader Date</button>
@@ -467,14 +484,16 @@
                   <img src={imageSrc} alt="PDF Coordinate Map" draggable="false" className="w-full h-auto pointer-events-none" />
                   
                   {Object.entries(mappings).map(([key, pos]) => {
-                     const isStaffSig = key.startsWith('staff') && !key.startsWith('staffdate');
+                     const isStaffSig = key.startsWith('staff') && !key.startsWith('staffdate') && !key.startsWith('staffname');
                      const isStaffDate = key.startsWith('staffdate') || key === 'date';
+                     const isStaffName = key.startsWith('staffname');
                      const isLeaderSig = key.startsWith('leader') && !key.startsWith('leaderdate');
                      const isLeaderDate = key.startsWith('leaderdate');
 
                      let label = 'Signature';
                      let colorClass = 'border-gray-500 bg-gray-100/60 text-gray-800';
                      if (isStaffSig) { label = 'Staff Sig'; colorClass = 'border-blue-500 bg-blue-100/60 text-blue-800'; }
+                     else if (isStaffName) { label = 'Staff Name'; colorClass = 'border-teal-500 bg-teal-100/60 text-teal-800'; }
                      else if (isStaffDate) { label = 'Staff Date'; colorClass = 'border-green-500 bg-green-100/60 text-green-800'; }
                      else if (isLeaderSig) { label = 'Leader Sig'; colorClass = 'border-purple-500 bg-purple-100/60 text-purple-800'; }
                      else if (isLeaderDate) { label = 'Leader Date'; colorClass = 'border-orange-500 bg-orange-100/60 text-orange-800'; }
@@ -485,7 +504,7 @@
                          onMouseDown={(e)=>handlePointerDown(e, key)} 
                          onTouchStart={(e)=>handlePointerDown(e, key)}
                          className={`absolute flex items-center justify-center font-bold text-xs shadow backdrop-blur-[2px] cursor-grab active:cursor-grabbing border-2 rounded touch-none select-none ${colorClass}`}
-                         style={{ left: `${pos.xPct * 100}%`, top: `${pos.yPct * 100}%`, width: (isStaffDate || isLeaderDate) ? '6rem' : '9rem', height: (isStaffDate || isLeaderDate) ? '2rem' : '2.5rem' }}
+                         style={{ left: `${pos.xPct * 100}%`, top: `${pos.yPct * 100}%`, width: (isStaffDate || isLeaderDate || isStaffName) ? '6rem' : '9rem', height: (isStaffDate || isLeaderDate || isStaffName) ? '2rem' : '2.5rem' }}
                        >
                          {label}
                          <button
@@ -536,14 +555,13 @@
 
           const AVAILABLE_ROLES = [
             { id: 'All', label: 'All Staff (Universal)' },
-            { id: 'Clinical', label: 'All Clinical Staff' },
-            { id: 'RN', label: 'All RNs' },
-            { id: 'Nurse Intern', label: 'Nurse Intern' },
-            { id: 'Clinical Partner 2', label: 'Clinical Partner 2' },
-            { id: 'Unit Clerk/ Admin Partner', label: 'Unit Clerk/ Admin Partner' },
-            { id: 'RN- DPC New Grad', label: 'RN- DPC New Grad' },
-            { id: 'RN-Specialty/Non-Procedural', label: 'RN-Specialty/Non-Procedural' },
+            { id: 'Clinical', label: 'All Clinical (Excludes Admin)' },
             { id: 'RN-Sub-Specialty/Procedural', label: 'RN-Sub-Specialty/Procedural' },
+            { id: 'Clinical Partner 2', label: 'Clinical Partner 2' },
+            { id: 'Nurse Intern', label: 'Nurse Intern' },
+            { id: 'RN- DPC New Grad', label: 'RN- DPC New Grad' },
+            { id: 'Unit Clerk/ Admin Partner', label: 'Unit Clerk/ Admin Partner' },
+            { id: 'RN-Specialty/Non-Procedural', label: 'RN-Specialty/Non-Procedural' },
             { id: 'Pool RN-SpecNonProc/Sub-SpecPr', label: 'Pool RN' }
           ];
 
@@ -593,17 +611,12 @@
 
           const isRoleMatch = (defRole, empRole) => {
             const roles = Array.isArray(defRole) ? defRole : [defRole];
+            
             if (roles.includes('All')) return true;
-            if (roles.includes(empRole)) return true;
+            if (roles.includes(empRole)) return true; // Strict Match (Used for JDs)
             
-            // Umbrella: Clinical
-            if (roles.includes('Clinical') && ['Nurse Intern', 'Clinical Partner 2', 'RN- DPC New Grad', 'RN-Specialty/Non-Procedural', 'RN-Sub-Specialty/Procedural', 'Pool RN-SpecNonProc/Sub-SpecPr'].includes(empRole)) return true;
-            
-            // Umbrella: All RNs
-            if (roles.includes('RN') && empRole.toLowerCase().includes('rn')) return true;
-            
-            // Grouping Rule: Nurse Interns are grouped with Clinical Partners
-            if (roles.includes('Clinical Partner 2') && empRole === 'Nurse Intern') return true;
+            // Umbrella: Clinical applies to everyone except Admin Partner
+            if (roles.includes('Clinical') && empRole !== 'Unit Clerk/ Admin Partner') return true;
             
             return false;
           };
@@ -649,33 +662,53 @@
             }
           };
 
-          const handleSyncStaffForms = async (empId, empName, role) => {
+          // --- GLOBAL SYNC ALL STAFF ---
+          const handleGlobalSync = async () => {
+             if(!window.confirm("This will scan ALL employees, assign any missing forms, and REMOVE pending forms that no longer match their role. Continue?")) return;
              setIsSubmitting(true);
+             let totalAdded = 0;
+             let totalRemoved = 0;
+
              try {
-               const applicableForms = allFormTypes.filter(def => isRoleMatch(def.role, role));
-               const existingTemplateIds = forms.filter(f => f.employeeId === empId).map(f => f.templateId);
-               let added = 0;
-               for (const def of applicableForms) {
-                 if (!existingTemplateIds.includes(def.id)) {
-                   await addDoc(collection(db, 'forms'), {
-                     employeeId: empId,
-                     employeeName: empName,
-                     templateId: def.id,
-                     title: def.title,
-                     requiresLeader: def.requiresLeader,
-                     status: 'pending_employee',
-                     currentPdf: null,
-                     createdAt: serverTimestamp()
-                   });
-                   added++;
-                 }
-               }
-               alert(`Synced! Added ${added} missing forms to ${empName}.`);
+                for (const emp of employees) {
+                    const applicableForms = allFormTypes.filter(def => isRoleMatch(def.role, emp.type));
+                    const applicableFormIds = applicableForms.map(f => f.id);
+                    const empForms = forms.filter(f => f.employeeId === emp.id);
+                    
+                    // Remove pending forms that are no longer applicable
+                    for (const f of empForms) {
+                        if (f.status.startsWith('pending') && !applicableFormIds.includes(f.templateId)) {
+                            await deleteDoc(doc(db, 'forms', f.id));
+                            totalRemoved++;
+                        }
+                    }
+                    
+                    // Add missing applicable forms
+                    const keptForms = empForms.filter(f => applicableFormIds.includes(f.templateId) || !f.status.startsWith('pending'));
+                    const existingTemplateIds = keptForms.map(f => f.templateId);
+                    
+                    for (const def of applicableForms) {
+                        if (!existingTemplateIds.includes(def.id)) {
+                            await addDoc(collection(db, 'forms'), {
+                                employeeId: emp.id,
+                                employeeName: emp.name,
+                                templateId: def.id,
+                                title: def.title,
+                                requiresLeader: def.requiresLeader,
+                                status: 'pending_employee',
+                                currentPdf: null,
+                                createdAt: serverTimestamp()
+                            });
+                            totalAdded++;
+                        }
+                    }
+                }
+                alert(`Global Sync Complete!\n\nAdded: ${totalAdded} missing forms.\nRemoved: ${totalRemoved} outdated pending forms.`);
              } catch(e) {
-               console.error(e);
-               alert("Error syncing forms.");
+                console.error(e);
+                alert("Error during global sync.");
              } finally {
-               setIsSubmitting(false);
+                setIsSubmitting(false);
              }
           };
 
@@ -683,21 +716,31 @@
             setIsSubmitting(true);
             try {
               await updateDoc(doc(db, 'employees', empId), { type: newRole });
+              
+              // Run a micro-sync just for this employee so changes apply immediately
               const applicableForms = allFormTypes.filter(def => isRoleMatch(def.role, newRole));
-              const existingTemplateIds = forms.filter(f => f.employeeId === empId).map(f => f.templateId);
+              const applicableFormIds = applicableForms.map(f => f.id);
+              const empForms = forms.filter(f => f.employeeId === empId);
+              
+              for (const f of empForms) {
+                  if (f.status.startsWith('pending') && !applicableFormIds.includes(f.templateId)) {
+                      await deleteDoc(doc(db, 'forms', f.id));
+                  }
+              }
+              const existingTemplateIds = empForms.filter(f => applicableFormIds.includes(f.templateId) || !f.status.startsWith('pending')).map(f => f.templateId);
               for (const def of applicableForms) {
-                if (!existingTemplateIds.includes(def.id)) {
-                  await addDoc(collection(db, 'forms'), {
-                    employeeId: empId,
-                    employeeName: empName,
-                    templateId: def.id,
-                    title: def.title,
-                    requiresLeader: def.requiresLeader,
-                    status: 'pending_employee',
-                    currentPdf: null,
-                    createdAt: serverTimestamp()
-                  });
-                }
+                  if (!existingTemplateIds.includes(def.id)) {
+                      await addDoc(collection(db, 'forms'), {
+                          employeeId: empId,
+                          employeeName: empName,
+                          templateId: def.id,
+                          title: def.title,
+                          requiresLeader: def.requiresLeader,
+                          status: 'pending_employee',
+                          currentPdf: null,
+                          createdAt: serverTimestamp()
+                      });
+                  }
               }
             } catch(e) {
               console.error(e);
@@ -788,7 +831,7 @@
               }
               const isLeaderMode = view === 'leader' || view === 'admin';
               const signerName = isLeaderMode ? leaderName : selectedForm.employeeName;
-              const signedPdfBase64 = await affixSignatureToPDF(pdfToSign, signatureData, templateDoc?.mappings, signerName, isLeaderMode);
+              const signedPdfBase64 = await affixSignatureToPDF(pdfToSign, signatureData, templateDoc?.mappings, signerName, isLeaderMode, selectedForm.employeeName);
               const updateData = { currentPdf: signedPdfBase64 };
 
               if (isLeaderMode) {
@@ -1215,7 +1258,10 @@
                     </div>
 
                     <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 h-fit max-h-[450px] flex flex-col">
-                      <h2 className="font-bold text-lg mb-3 flex items-center gap-2 text-slate-800"><User size={20} className="text-red-500"/> Manage Staff</h2>
+                      <div className="flex justify-between items-center mb-3">
+                         <h2 className="font-bold text-lg flex items-center gap-2 text-slate-800"><User size={20} className="text-red-500"/> Manage Staff</h2>
+                         <button onClick={handleGlobalSync} disabled={isSubmitting} className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 font-bold flex items-center gap-1 shadow-sm transition-colors disabled:opacity-50"><RefreshCw size={12}/> Sync All Staff Records</button>
+                      </div>
                       
                       <div className="relative mb-3 shrink-0">
                          <Search className="absolute left-2.5 top-2.5 text-slate-400" size={14}/>
@@ -1254,24 +1300,14 @@
                                   <option value="Pool RN-SpecNonProc/Sub-SpecPr">Pool RN-SpecNonProc/Sub-SpecPr</option>
                                 </select>
                               </div>
-                              <div className="flex flex-col gap-1 shrink-0">
-                                <button
-                                  onClick={() => handleSyncStaffForms(emp.id, emp.name, emp.type)}
-                                  disabled={isSubmitting}
-                                  className="text-slate-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-50"
-                                  title="Sync / Add Missing Forms"
-                                >
-                                  <RefreshCw size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleRemoveEmployee(emp.id, emp.name)}
-                                  disabled={isSubmitting}
-                                  className="text-slate-300 hover:text-red-600 p-1 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
-                                  title="Remove Staff &amp; Delete Records"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
+                              <button
+                                onClick={() => handleRemoveEmployee(emp.id, emp.name)}
+                                disabled={isSubmitting}
+                                className="text-slate-300 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                                title="Remove Staff &amp; Delete Records"
+                              >
+                                <Trash2 size={16} />
+                              </button>
                             </div>
                           ))
                         )}
